@@ -36,9 +36,18 @@ return new class extends Migration
             ['process_code' => 'ti0101', 'name' => 'Тасалбар шалгах', 'name2' => 'Verify ticket', 'controller' => 'TicketController@verify'],
             ['process_code' => 'ti0102', 'name' => 'Тасалбар үүсгэх', 'name2' => 'Create ticket', 'controller' => 'TicketController@store'],
 
-            // Messages & Sync (Offline functionality)
-            ['process_code' => 'ms0101', 'name' => 'Онцгой байдлын мэдэгдэл илгээх', 'name2' => 'Send emergency', 'controller' => 'MessageController@emergency'],
-            ['process_code' => 'sy0101', 'name' => 'Оффлайн дата Sync хийх', 'name2' => 'Sync offline data', 'controller' => 'SyncController@sync'],
+            // Checkin
+            ['process_code' => 'ch0101', 'name' => 'Чек-ин хийх', 'name2' => 'Checkin', 'controller' => 'CheckinController@ch0101'],
+
+            // Messages
+            ['process_code' => 'ms0101', 'name' => 'Мессежүүд харах', 'name2' => 'List messages', 'controller' => 'MessageController@ms0101'],
+            ['process_code' => 'ms0102', 'name' => 'Мессеж илгээх', 'name2' => 'Send message', 'controller' => 'MessageController@ms0102'],
+            
+            // Notifications
+            ['process_code' => 'nt0101', 'name' => 'Мэдэгдэл илгээх', 'name2' => 'Send notification', 'controller' => 'NotificationController@nt0101'],
+
+            // Sync
+            ['process_code' => 'sy0101', 'name' => 'Оффлайн дата Sync хийх', 'name2' => 'Sync offline data', 'controller' => 'SyncController@sy0101'],
         ];
 
         foreach ($processes as $process) {
