@@ -9,8 +9,9 @@ use App\Http\Requests\CheckinRequest;
 
 class CheckinController extends Controller
 {
-    public function ch0101(CheckinRequest $request, Event $event)
+    public function ch0101(CheckinRequest $request)
     {
+        $event = Event::findOrFail($request->event_id);
 
         $checkin = $event->checkins()->create([
             'ticket_id' => $request->ticket_id,

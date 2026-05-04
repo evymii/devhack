@@ -8,8 +8,9 @@ use App\Http\Requests\NotificationSendRequest;
 
 class NotificationController extends Controller
 {
-    public function nt0101(NotificationSendRequest $request, Event $event)
+    public function nt0101(NotificationSendRequest $request)
     {
+        $event = Event::findOrFail($request->event_id);
 
         $notification = $event->notifications()->create([
             'user_id' => $request->user_id,

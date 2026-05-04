@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('name2')->nullable();
             $table->string('controller');
+            $table->string('function');
             $table->integer('statusid')->default(1);
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();

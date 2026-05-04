@@ -9,14 +9,16 @@ use Illuminate\Http\Request;
 
 class MessageController extends Controller
 {
-    public function ms0101(Event $event)
+    public function ms0101(Request $request)
     {
+        $event = Event::findOrFail($request->event_id);
         $messages = $event->messages()->with('user')->latest()->paginate(50);
         return $this->success($messages);
     }
 
-    public function ms0102(\App\Http\Requests\MessageSendRequest $request, Event $event)
+    public function ms0102(\App\Http\Requests\MessageSendRequest $request)
     {
+        $event = Event::findOrFail($request->event_id);
 
         $message = $event->messages()->create([
             'user_id' => $request->user()->id,

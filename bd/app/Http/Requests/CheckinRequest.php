@@ -9,6 +9,7 @@ class CheckinRequest extends FormRequest
     public function rules()
     {
         return [
+            'event_id' => 'required|exists:events,id',
             'ticket_id' => 'required|exists:tickets,id',
             'device_id' => 'required|string',
         ];

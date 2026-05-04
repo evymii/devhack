@@ -9,6 +9,7 @@ class NotificationSendRequest extends FormRequest
     public function rules()
     {
         return [
+            'event_id' => 'required|exists:events,id',
             'title' => 'required|string|max:255',
             'body' => 'required|string',
             'type' => 'required|string|max:50',

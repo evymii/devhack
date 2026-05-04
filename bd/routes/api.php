@@ -19,12 +19,14 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
-    Route::post('/events/{event}/checkins', [\App\Http\Controllers\CheckinController::class, 'ch0101']);
+    // Route::post('/events/{event}/checkins', [\App\Http\Controllers\CheckinController::class, 'ch0101']);
     
-    Route::post('/events/{event}/messages/list', [\App\Http\Controllers\MessageController::class, 'ms0101']);
-    Route::post('/events/{event}/messages', [\App\Http\Controllers\MessageController::class, 'ms0102']);
+    // Route::post('/events/{event}/messages/list', [\App\Http\Controllers\MessageController::class, 'ms0101']);
+    // Route::post('/events/{event}/messages', [\App\Http\Controllers\MessageController::class, 'ms0102']);
     
-    Route::post('/events/{event}/notifications', [\App\Http\Controllers\NotificationController::class, 'nt0101']);
+    // Route::post('/events/{event}/notifications', [\App\Http\Controllers\NotificationController::class, 'nt0101']);
     
-    Route::post('/sync', [\App\Http\Controllers\SyncController::class, 'sy0101']);
+    // Route::post('/sync', [\App\Http\Controllers\SyncController::class, 'sy0101']);
+
+    Route::post('/app/process', [\App\Http\Controllers\ProcessController::class, 'process']);
 });

@@ -15,5 +15,5 @@ class AxiomProcess extends Model
 
     use HasFactory;
 
-    protected $fillable = ['process_code', 'name', 'name2', 'controller', 'statusid'];
+    protected $fillable = ['process_code', 'name', 'name2', 'controller', 'function', 'statusid'];
 }
