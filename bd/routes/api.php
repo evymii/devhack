@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\CheckinController;
+use App\Http\Controllers\MessageController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\SyncController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -19,14 +23,18 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
-    // Route::post('/events/{event}/checkins', [\App\Http\Controllers\CheckinController::class, 'ch0101']);
-    
-    // Route::post('/events/{event}/messages/list', [\App\Http\Controllers\MessageController::class, 'ms0101']);
-    // Route::post('/events/{event}/messages', [\App\Http\Controllers\MessageController::class, 'ms0102']);
-    
-    // Route::post('/events/{event}/notifications', [\App\Http\Controllers\NotificationController::class, 'nt0101']);
-    
-    // Route::post('/sync', [\App\Http\Controllers\SyncController::class, 'sy0101']);
+    Route::post('/events/{event}/checkins', [CheckinController::class, 'store']);
+    Route::post('/tickets/{ticket}/claim', [\App\Http\Controllers\TicketController::class, 'claim']);
 
-    Route::post('/app/process', [\App\Http\Controllers\ProcessController::class, 'process']);
+    Route::get('/events/{event}/messages', [MessageController::class, 'index']);
+    Route::post('/events/{event}/messages', [MessageController::class, 'store']);
+
+    Route::middleware(['admin'])->group(function () {
+        Route::post('/admin/events', [\App\Http\Controllers\AdminController::class, 'createEvent']);
+        Route::post('/admin/events/{event}/tickets', [\App\Http\Controllers\AdminController::class, 'generateTickets']);
+        Route::post('/events/{event}/notifications', [NotificationController::class, 'store']);
+    });
+
+    Route::get('/events/{event}/download-data', [SyncController::class, 'download']);
+    Route::post('/sync', [SyncController::class, 'store']);
 });

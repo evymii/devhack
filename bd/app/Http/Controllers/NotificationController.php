@@ -2,27 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\NotificationSent;
-use App\Models\Event;
-use App\Http\Requests\NotificationSendRequest;
+use Illuminate\Http\Request;
+use App\Services\NotificationService;
 
 class NotificationController extends Controller
 {
-    public function nt0101(NotificationSendRequest $request)
+    public function store(Request $request, NotificationService $notificationService)
     {
-        $event = Event::findOrFail($request->event_id);
-
-        $notification = $event->notifications()->create([
-            'user_id' => $request->user_id,
-            'title' => $request->title,
-            'body' => $request->body,
-            'type' => $request->type,
-            'is_broadcast' => $request->is_broadcast ?? false,
-            'sent_at' => now(),
-            'created_by' => $request->user()->id,
+        $validated = $this->validateMe($request, [
+            'event_id' => 'required|exists:events,id',
+            'title' => 'required|string|max:255',
+            'body' => 'required|string',
+            'type' => 'required|string|max:50',
+            'is_broadcast' => 'boolean',
+            'user_id' => 'nullable|exists:users,id',
         ]);
 
-        NotificationSent::dispatch($notification);
+        $notification = $notificationService->sendNotification($validated, $request->user()->id);
 
         return $this->success($notification);
     }

@@ -2,24 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\CheckinRecorded;
-use App\Models\Checkin;
-use App\Models\Event;
-use App\Http\Requests\CheckinRequest;
+use Illuminate\Http\Request;
+use App\Services\CheckinService;
 
 class CheckinController extends Controller
 {
-    public function ch0101(CheckinRequest $request)
+    public function store(Request $request, CheckinService $checkinService)
     {
-        $event = Event::findOrFail($request->event_id);
-
-        $checkin = $event->checkins()->create([
-            'ticket_id' => $request->ticket_id,
-            'device_id' => $request->device_id,
-            'synced_at' => now(),
+        $validated = $this->validateMe($request, [
+            'event_id' => 'required|exists:events,id',
+            'ticket_id' => 'required|exists:tickets,id',
+            'device_id' => 'required|string',
+            'user_device_id' => 'nullable|string',
         ]);
 
-        CheckinRecorded::dispatch($checkin);
+        $checkin = $checkinService->processCheckin($validated);
 
         return $this->success($checkin);
     }

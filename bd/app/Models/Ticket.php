@@ -16,7 +16,7 @@ class Ticket extends Model
     use HasFactory;
 
     protected $fillable = [
-        'event_id', 'user_id', 'qr_code', 'signature', 'type', 'is_used'
+        'event_id', 'user_id', 'qr_code', 'signature', 'type', 'is_used', 'bound_device_id'
     ];
 
     protected $casts = [

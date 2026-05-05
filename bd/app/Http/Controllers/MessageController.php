@@ -2,36 +2,28 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\EmergencyAlert;
-use App\Events\MessageSent;
 use App\Models\Event;
 use Illuminate\Http\Request;
+use App\Services\MessageService;
 
 class MessageController extends Controller
 {
-    public function ms0101(Request $request)
+    public function index(Request $request, Event $event)
     {
-        $event = Event::findOrFail($request->event_id);
-        $messages = $event->messages()->with('user')->latest()->paginate(50);
+        $query = $event->messages()->with('user');
+        $messages = $this->getGridData($request, $query, [['field' => 'created_at', 'dir' => 'desc']]);
         return $this->success($messages);
     }
 
-    public function ms0102(\App\Http\Requests\MessageSendRequest $request)
+    public function store(Request $request, Event $event, MessageService $messageService)
     {
-        $event = Event::findOrFail($request->event_id);
-
-        $message = $event->messages()->create([
-            'user_id' => $request->user()->id,
-            'sender_device_id' => $request->sender_device_id,
-            'message' => $request->message,
-            'is_emergency' => $request->is_emergency ?? false,
+        $validated = $this->validateMe($request, [
+            'message' => 'required|string',
+            'sender_device_id' => 'required|string',
+            'is_emergency' => 'boolean',
         ]);
 
-        MessageSent::dispatch($message);
-
-        if ($message->is_emergency) {
-            EmergencyAlert::dispatch($message);
-        }
+        $message = $messageService->sendMessage($validated, $event, $request->user()->id);
 
         return $this->success($message);
     }

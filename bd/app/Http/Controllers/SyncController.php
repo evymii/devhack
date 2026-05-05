@@ -2,60 +2,48 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\SyncCompleted;
-use App\Models\SyncQueue;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Http\Requests\SyncRequest;
+use Illuminate\Http\Request;
+use App\Models\Event;
+use App\Jobs\ProcessSyncChunk;
 
 class SyncController extends Controller
 {
-    public function sy0101(SyncRequest $request)
+    public function store(Request $request)
     {
+        $validated = $this->validateMe($request, [
+            'device_id' => 'required|string',
+            'records' => 'required|array',
+            'records.*.entity_type' => 'required|string',
+            'records.*.entity_id' => 'required|integer',
+            'records.*.payload' => 'required|array',
+        ]);
 
-        $deviceId = $request->device_id;
-        $processedCount = 0;
+        $deviceId = $validated['device_id'];
+        
+        $chunks = array_chunk($validated['records'], 100);
 
-        DB::beginTransaction();
-        try {
-            foreach ($request->records as $record) {
-                $existing = SyncQueue::where('device_id', $deviceId)
-                    ->where('entity_type', $record['entity_type'])
-                    ->where('entity_id', $record['entity_id'])
-                    ->first();
-
-                if ($existing) {
-                    SyncQueue::where('id', $existing->id)->update([
-                        'payload' => is_array($record['payload']) ? json_encode($record['payload']) : $record['payload'],
-                        'synced_at' => now(),
-                        'updated_at' => now()
-                    ]);
-                } else {
-                    SyncQueue::insert([
-                        'device_id' => $deviceId,
-                        'entity_type' => $record['entity_type'],
-                        'entity_id' => $record['entity_id'],
-                        'payload' => is_array($record['payload']) ? json_encode($record['payload']) : $record['payload'],
-                        'synced_at' => now(),
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]);
-                }
-                $processedCount++;
-            }
-            DB::commit();
-
-            SyncCompleted::dispatch($deviceId, ['processed_count' => $processedCount]);
-
-            return $this->success([
-                'message' => 'Sync processed successfully',
-                'processed_count' => $processedCount
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Sync failed: ' . $e->getMessage());
-            return $this->error('SR0001', ['error' => 'Sync failed']);
+        foreach ($chunks as $chunk) {
+            ProcessSyncChunk::dispatch($deviceId, $chunk);
         }
+
+        return $this->success([
+            'message' => 'Sync chunks queued successfully',
+            'total_queued' => count($validated['records']),
+            'chunks_count' => count($chunks)
+        ]);
+    }
+
+    public function download(Event $event)
+    {
+        $tickets = $event->tickets()->with('user:id,name,email,biometric_data')->get();
+        $schedule = $event->schedules()->get();
+
+        return $this->success([
+            'event' => $event,
+            'tickets' => $tickets,
+            'schedule' => $schedule,
+            'downloaded_at' => now(),
+        ]);
     }
 }
