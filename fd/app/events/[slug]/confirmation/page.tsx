@@ -1,23 +1,31 @@
-"use client"
+"use client";
 
-import { use, useEffect, useState } from "react"
-import Link from "next/link"
-import { Calendar, Check, MapPin, ScanFace, Ticket as TicketIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { getTicket, type Ticket } from "@/lib/tickets"
-import { formatDate, formatPrice } from "@/lib/events"
+import { use, useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Calendar,
+  Check,
+  MapPin,
+  ScanFace,
+  Ticket as TicketIcon,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { getTicket, type Ticket } from "@/lib/tickets";
+import { formatDate, formatPrice } from "@/lib/events";
 
-export default function ConfirmationPage(props: PageProps<"/events/[slug]/confirmation">) {
-  const search = use(props.searchParams)
-  const id = typeof search.t === "string" ? search.t : null
-  const [ticket, setTicket] = useState<Ticket | null>(null)
+export default function ConfirmationPage(
+  props: PageProps<"/events/[slug]/confirmation">,
+) {
+  const search = use(props.searchParams);
+  const id = typeof search.t === "string" ? search.t : null;
+  const [ticket, setTicket] = useState<Ticket | null>(null);
 
   useEffect(() => {
-    if (!id) return
-    setTicket(getTicket(id) ?? null)
-  }, [id])
+    if (!id) return;
+    setTicket(getTicket(id) ?? null);
+  }, [id]);
 
   if (!ticket) {
     return (
@@ -27,7 +35,7 @@ export default function ConfirmationPage(props: PageProps<"/events/[slug]/confir
           <Link href="/events">Тоглолт руу буцах</Link>
         </Button>
       </main>
-    )
+    );
   }
 
   return (
@@ -36,10 +44,12 @@ export default function ConfirmationPage(props: PageProps<"/events/[slug]/confir
         <div className="grid size-12 place-items-center rounded-full bg-emerald-500/15 text-emerald-600">
           <Check className="size-6" />
         </div>
-        <h1 className="text-2xl font-light tracking-tight">Тасалбар таныг хүлээж байна.</h1>
+        <h1 className="text-2xl font-light tracking-tight">
+          Тасалбар таныг хүлээж байна.
+        </h1>
         <p className="max-w-md text-sm text-muted-foreground">
-          Таны царай амжилттай бүртгэгдлээ. Хаалган дээр зогсоход скан таныг таниад лангуу
-          нээгдэнэ. QR код байхгүй.
+          Таны царай амжилттай бүртгэгдлээ. Хаалган дээр зогсоход скан таныг
+          таниад лангуу нээгдэнэ. QR код байхгүй.
         </p>
       </div>
 
@@ -59,11 +69,17 @@ export default function ConfirmationPage(props: PageProps<"/events/[slug]/confir
           </div>
           <CardContent className="flex flex-1 flex-col gap-3 p-5">
             <div className="flex items-center justify-between">
-              <Badge variant="success">{ticket.status === "valid" ? "Хүчинтэй" : "Нэвтэрсэн"}</Badge>
-              <span className="text-xs text-muted-foreground">#{ticket.id}</span>
+              <Badge variant="success">
+                {ticket.status === "valid" ? "Хүчинтэй" : "Нэвтэрсэн"}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                #{ticket.id}
+              </span>
             </div>
             <div>
-              <h2 className="text-lg font-medium leading-tight">{ticket.eventTitle}</h2>
+              <h2 className="text-lg font-medium leading-tight">
+                {ticket.eventTitle}
+              </h2>
               <p className="text-sm text-muted-foreground">{ticket.tierName}</p>
             </div>
             <div className="space-y-1 text-sm">
@@ -77,8 +93,12 @@ export default function ConfirmationPage(props: PageProps<"/events/[slug]/confir
               </p>
             </div>
             <div className="mt-auto flex items-center justify-between border-t pt-3">
-              <span className="text-xs text-muted-foreground">{ticket.buyer.fullName}</span>
-              <span className="text-sm font-semibold">{formatPrice(ticket.pricePaid)}</span>
+              <span className="text-xs text-muted-foreground">
+                {ticket.buyer.nationalId}
+              </span>
+              <span className="text-sm font-semibold">
+                {formatPrice(ticket.pricePaid)}
+              </span>
             </div>
           </CardContent>
         </div>
@@ -95,5 +115,5 @@ export default function ConfirmationPage(props: PageProps<"/events/[slug]/confir
         </Button>
       </div>
     </main>
-  )
+  );
 }

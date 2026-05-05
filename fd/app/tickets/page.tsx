@@ -1,31 +1,36 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { Calendar, MapPin, ScanFace, Ticket as TicketIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { listTickets, type Ticket } from "@/lib/tickets"
-import { formatDate, formatPrice } from "@/lib/events"
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Calendar, MapPin, ScanFace, Ticket as TicketIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { listTickets, type Ticket } from "@/lib/tickets";
+import { formatDate, formatPrice } from "@/lib/events";
 
 export default function TicketsPage() {
-  const [tickets, setTickets] = useState<Ticket[]>([])
-  const [hydrated, setHydrated] = useState(false)
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setTickets(listTickets())
-    setHydrated(true)
-  }, [])
+    setTickets(listTickets());
+    setHydrated(true);
+  }, []);
 
-  if (!hydrated) return <main className="mx-auto w-full max-w-4xl px-6 py-12" />
+  if (!hydrated)
+    return <main className="mx-auto w-full max-w-4xl px-6 py-12" />;
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
       <div className="mb-8 flex items-end justify-between">
         <div>
-          <p className="text-sm uppercase tracking-widest text-muted-foreground">Тасалбар</p>
-          <h1 className="mt-2 text-3xl font-light tracking-tight">Миний тасалбарууд</h1>
+          <p className="text-sm uppercase tracking-widest text-muted-foreground">
+            Тасалбар
+          </p>
+          <h1 className="mt-2 text-3xl font-light tracking-tight">
+            Миний тасалбарууд
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Царайтай тань холбогдсон, дамжуулах боломжгүй тасалбарууд.
           </p>
@@ -68,10 +73,16 @@ export default function TicketsPage() {
                 <CardContent className="flex flex-1 flex-col gap-2 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h2 className="text-base font-medium leading-tight">{t.eventTitle}</h2>
-                      <p className="text-xs text-muted-foreground">{t.tierName}</p>
+                      <h2 className="text-base font-medium leading-tight">
+                        {t.eventTitle}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        {t.tierName}
+                      </p>
                     </div>
-                    <Badge variant={t.status === "valid" ? "success" : "secondary"}>
+                    <Badge
+                      variant={t.status === "valid" ? "success" : "secondary"}
+                    >
                       {t.status === "valid" ? "Хүчинтэй" : "Нэвтэрсэн"}
                     </Badge>
                   </div>
@@ -86,8 +97,12 @@ export default function TicketsPage() {
                     </span>
                   </div>
                   <div className="mt-auto flex items-center justify-between border-t pt-2 text-sm">
-                    <span className="text-muted-foreground">{t.buyer.fullName}</span>
-                    <span className="font-semibold">{formatPrice(t.pricePaid)}</span>
+                    <span className="text-muted-foreground">
+                      {t.buyer.nationalId}
+                    </span>
+                    <span className="font-semibold">
+                      {formatPrice(t.pricePaid)}
+                    </span>
                   </div>
                 </CardContent>
               </div>
@@ -96,5 +111,5 @@ export default function TicketsPage() {
         </div>
       )}
     </main>
-  )
+  );
 }

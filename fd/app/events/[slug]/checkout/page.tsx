@@ -15,18 +15,12 @@ import { newBiometricId, newTicketId, saveTicket } from "@/lib/tickets";
 type Step = "info" | "face" | "review";
 
 type Form = {
-  fullName: string;
   email: string;
-  phone: string;
-  dateOfBirth: string;
   nationalId: string;
 };
 
 const initialForm: Form = {
-  fullName: "",
   email: "",
-  phone: "",
-  dateOfBirth: "",
   nationalId: "",
 };
 
@@ -54,12 +48,7 @@ export default function CheckoutPage(
     );
   }
 
-  const formComplete =
-    form.fullName.trim() &&
-    form.email.trim() &&
-    form.phone.trim() &&
-    form.dateOfBirth.trim() &&
-    form.nationalId.trim();
+  const formComplete = form.email.trim() && form.nationalId.trim();
 
   const submit = () => {
     if (!snapshot) return;
@@ -120,15 +109,6 @@ export default function CheckoutPage(
                     баталгаажуулалтад ашиглана.
                   </p>
                 </div>
-                <Field label="Нэр">
-                  <Input
-                    value={form.fullName}
-                    onChange={(e) =>
-                      setForm({ ...form, fullName: e.target.value })
-                    }
-                    placeholder="Таны бүтэн нэр"
-                  />
-                </Field>
                 <Field label="Gmail">
                   <Input
                     type="email"
@@ -137,25 +117,6 @@ export default function CheckoutPage(
                       setForm({ ...form, email: e.target.value })
                     }
                     placeholder="та@gmail.com"
-                  />
-                </Field>
-                <Field label="Утасны дугаар">
-                  <Input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) =>
-                      setForm({ ...form, phone: e.target.value })
-                    }
-                    placeholder="+976 9911 2233"
-                  />
-                </Field>
-                <Field label="Төрсөн огноо">
-                  <Input
-                    type="date"
-                    value={form.dateOfBirth}
-                    onChange={(e) =>
-                      setForm({ ...form, dateOfBirth: e.target.value })
-                    }
                   />
                 </Field>
                 <Field label="Регистрийн дугаар">
@@ -240,10 +201,7 @@ export default function CheckoutPage(
                     )}
                   </div>
                   <div className="space-y-2 text-sm">
-                    <Row k="Нэр">{form.fullName}</Row>
                     <Row k="Gmail">{form.email}</Row>
-                    <Row k="Утас">{form.phone}</Row>
-                    <Row k="Төрсөн огноо">{form.dateOfBirth}</Row>
                     <Row k="Регистрийн дугаар">{form.nationalId}</Row>
                     <Row k="Биометрик ID">
                       <span className="font-mono text-xs">
