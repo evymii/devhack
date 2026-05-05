@@ -24,6 +24,9 @@ class AdminController extends Controller
 
     public function generateTickets(Request $request, Event $event)
     {
+        if ($event->statusid !== 1) {
+            throw new AxiomException('Арга хэмжээ олдсонгүй эсвэл устгагдсан байна.');
+        }
         $validated = $this->validateMe($request, [
             'count' => 'required|integer|min:1|max:1000',
             'type' => 'required|string',
@@ -40,5 +43,11 @@ class AdminController extends Controller
         }
 
         return $this->success(['message' => $validated['count'] . ' тасалбар үүсгэгдлээ.']);
+    }
+    
+    public function destroy(Event $event)
+    {
+        $event->update(['statusid' => -1]);
+        return $this->success(['message' => 'Арга хэмжээ устгагдлаа.']);
     }
 }

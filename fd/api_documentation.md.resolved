@@ -1,0 +1,501 @@
+# 🎫 Ticket System — API Документаци
+
+> **Base URL:** `http://localhost:8000/api`  
+> **Content-Type:** `application/json`  
+> **Auth:** Одоогоор `MockAuth` — бүх хүсэлт автоматаар Admin эрхтэй хэрэглэгчээр нэвтэрнэ.
+
+---
+
+## Стандарт Response бүтэц
+
+**Амжилттай:**
+```json
+{
+  "response_code": "success",
+  "response": { ...өгөгдөл... }
+}
+```
+
+**Алдаа:**
+```json
+{
+  "response_code": "error",
+  "response": "Алдааны мессеж"
+}
+```
+
+---
+
+## 📋 Арга хэмжээ (Events)
+
+### `GET /events`
+Идэвхтэй арга хэмжээнүүдийн жагсаалтыг авна.
+
+**Query параметрүүд:**
+| Параметр | Төрөл | Тайлбар |
+|---|---|---|
+| `perPage` | number | Хуудсан дахь тоо (default: 15) |
+| `page` | number | Хуудасны дугаар |
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "data": [
+      {
+        "id": 1,
+        "name": "DevHack 2026",
+        "description": "Хакатон тэмцээн",
+        "start_time": "2026-06-01T09:00:00.000000Z",
+        "end_time": "2026-06-02T18:00:00.000000Z",
+        "location": "Улаанбаатар, Монгол",
+        "map_image_url": null,
+        "settings": null,
+        "statusid": 1
+      }
+    ],
+    "total": 5,
+    "per_page": 15,
+    "current_page": 1,
+    "last_page": 1
+  }
+}
+```
+
+---
+
+### `GET /events/{id}`
+Нэг арга хэмжээний дэлгэрэнгүй болон хуваарийг авна.
+
+> ⚠️ `{id}` нь URL дахь арга хэмжээний ID юм.  
+> Энэ endpoint нь `statusid = -1` буюу устгагдсан арга хэмжээг буцаахгүй.
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "id": 1,
+    "name": "DevHack 2026",
+    "start_time": "2026-06-01T09:00:00.000000Z",
+    "end_time": "2026-06-02T18:00:00.000000Z",
+    "location": "Улаанбаатар, Монгол",
+    "schedules": [
+      {
+        "id": 3,
+        "title": "Нээлтийн ёслол",
+        "start_time": "2026-06-01T09:00:00.000000Z",
+        "end_time": "2026-06-01T10:00:00.000000Z",
+        "location": "Үндсэн тайз",
+        "speaker": "Б. Баатар"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 🎟️ Тасалбар — Хэрэглэгч
+
+### `POST /events/{eventId}/tickets/purchase`
+Хэрэглэгч тасалбар захиална.
+
+**Request Body:**
+```json
+{
+  "tier_name": "VIP",
+  "device_id": "device-uuid-xxx",
+  "buyer": {
+    "fullName": "Болд Батаа",
+    "email": "bold@example.com",
+    "phone": "99001122",
+    "dateOfBirth": "1995-05-15",
+    "nationalId": "AB12345678"
+  },
+  "biometric_snapshot": "base64_encoded_face_image_string"
+}
+```
+
+> 💡 `biometric_snapshot` өгвөл хэрэглэгчийн профайл дээр царайны дата хадгалагдана. Ингэснээр сканнерт царайгаар баталгаажуулах боломжтой болно.
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "message": "Тасалбарыг амжилттай захиаллаа.",
+    "ticket": {
+      "id": "tk_42",
+      "eventId": "evt_1",
+      "eventTitle": "DevHack 2026",
+      "eventDate": "2026-06-01",
+      "venue": "Улаанбаатар, Монгол",
+      "tierName": "VIP",
+      "pricePaid": 50000,
+      "buyer": {
+        "fullName": "Болд Батаа",
+        "email": "bold@example.com",
+        "phone": "99001122",
+        "dateOfBirth": "1995-05-15",
+        "nationalId": "AB12345678"
+      },
+      "biometric": {
+        "snapshot": "base64_encoded...",
+        "enrolledAt": "2026-05-05T10:00:00.000000Z"
+      },
+      "status": "valid",
+      "createdAt": "2026-05-05T10:00:00.000000Z",
+      "redeemedAt": null
+    }
+  }
+}
+```
+
+---
+
+### `POST /tickets/{ticketId}/claim`
+Хэрэглэгч QR унших замаар тасалбарыг өөрийн болгоно.
+
+> Энэ нь Админаас урьдчилан бэлдсэн эзэнгүй тасалбарыг хэрэглэгч скайнаад өөрийн болгох үед ашиглана.
+
+**Request Body:**
+```json
+{
+  "device_id": "device-uuid-xxx",
+  "buyer": {
+    "fullName": "Болд Батаа",
+    "email": "bold@example.com",
+    "phone": "99001122",
+    "dateOfBirth": "1995-05-15",
+    "nationalId": "AB12345678"
+  },
+  "biometric_data": "base64_face_embedding_string",
+  "biometric_snapshot": "base64_face_image_string"
+}
+```
+
+**Response:** Ticket объект (`purchase` response-той ижил бүтэц)
+
+---
+
+### `POST /tickets/{ticketId}/redeem`
+Тасалбар ашиглагдсан гэж тэмдэглэнэ (сканнер дээр нэвтрэхэд).
+
+**Request Body:**
+```json
+{
+  "device_id": "scanner-device-uuid"
+}
+```
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "message": "Тасалбар амжилттай нэвтрүүллээ.",
+    "ticket": { ...Ticket объект... }
+  }
+}
+```
+
+---
+
+## 🛡️ Админ — Арга хэмжээ
+
+### `POST /admin/events`
+Шинэ арга хэмжээ үүсгэнэ.
+
+**Request Body:**
+```json
+{
+  "name": "DevHack 2026",
+  "description": "Монголын хамгийн том хакатон",
+  "start_time": "2026-06-01 09:00:00",
+  "end_time": "2026-06-02 18:00:00",
+  "location": "UB, Mongolia"
+}
+```
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "id": 1,
+    "name": "DevHack 2026",
+    ...
+  }
+}
+```
+
+---
+
+### `DELETE /admin/events/{eventId}`
+Арга хэмжээг устгана (soft-delete: `statusid = -1` болгоно).
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": { "message": "Арга хэмжээ устгагдлаа." }
+}
+```
+
+---
+
+## 🛡️ Админ — Тасалбар
+
+### `POST /admin/events/{eventId}/tickets`
+Тасалбарыг бөөнөөр үүсгэнэ.
+
+**Request Body:**
+```json
+{
+  "count": 100,
+  "tier_name": "VIP",
+  "price_paid": 50000
+}
+```
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "message": "100 тасалбар амжилттай үүсгэлээ.",
+    "tickets": [ ...Ticket объектуудын массив... ]
+  }
+}
+```
+
+---
+
+### `GET /admin/tickets`
+Бүх тасалбарын жагсаалт харах (шүүлт, хайлт, хуудаслалт дэмждэг).
+
+**Query параметрүүд:**
+| Параметр | Төрөл | Тайлбар |
+|---|---|---|
+| `event_id` | number | Тухайн арга хэмжээний тасалбарууд |
+| `status` | `valid` \| `redeemed` | Тасалбарын статус |
+| `tier` | string | Ангилал нэрээр шүүх (жнь: `"VIP"`) |
+| `search` | string | Нэр, email, үндэсний ID, QR кодоор хайх |
+| `sort` | string | Эрэмблэх талбар: `created_at`, `redeemed_at`, `price_paid`, `buyer_name`, `tier_name` |
+| `dir` | `asc` \| `desc` | Эрэмблэлийн чиглэл |
+| `per_page` | number | Хуудсан дахь тоо (max: 100) |
+| `page` | number | Хуудасны дугаар |
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "data": [ ...Ticket объектуудын массив... ],
+    "pagination": {
+      "total": 100,
+      "per_page": 20,
+      "current_page": 1,
+      "last_page": 5,
+      "has_more": true
+    },
+    "summary": {
+      "total": 100,
+      "valid": 75,
+      "redeemed": 25
+    }
+  }
+}
+```
+
+---
+
+### `GET /admin/tickets/{ticketId}`
+Нэг тасалбарын дэлгэрэнгүй.
+
+**Response:** Ticket объект
+
+---
+
+### `POST /admin/tickets/scan`
+**Сканнер** — QR код эсвэл царайгаар тасалбар хайна.
+
+> 💡 `qr_code` болон `biometric_data` хоёрын аль нэгийг заавал илгээх ёстой.
+
+**Request Body (QR-aar):**
+```json
+{
+  "qr_code": "QR-ABCD-EFGH"
+}
+```
+
+**Request Body (Царайгаар):**
+```json
+{
+  "biometric_data": "base64_face_embedding_string"
+}
+```
+
+**Response (олдвол):**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "ticket": { ...Ticket объект... },
+    "is_used": false,
+    "redeemed_at": null,
+    "buyer": {
+      "fullName": "Болд Батаа",
+      "email": "bold@example.com"
+    }
+  }
+}
+```
+
+---
+
+### `DELETE /admin/tickets/{ticketId}`
+Тасалбар устгана (soft-delete: `statusid = -1`).
+
+> ⚠️ Ашиглагдсан (`is_used = true`) тасалбарыг устгах боломжгүй.
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": { "message": "Тасалбар устгагдлаа." }
+}
+```
+
+---
+
+## 💬 Мессеж
+
+### `GET /events/{eventId}/messages`
+Тухайн арга хэмжээний мессежүүдийг авна.
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "data": [
+      {
+        "id": 1,
+        "message": "Нээлтийн ёслол эхэллээ!",
+        "is_emergency": false,
+        "created_at": "2026-06-01T09:00:00.000000Z",
+        "user": { "id": 1, "name": "Admin" }
+      }
+    ]
+  }
+}
+```
+
+---
+
+### `POST /events/{eventId}/messages`
+Шинэ мессеж илгээнэ.
+
+**Request Body:**
+```json
+{
+  "message": "Хариуцлагатай байгаарай!",
+  "sender_device_id": "device-uuid-xxx",
+  "is_emergency": false
+}
+```
+
+---
+
+## 🔄 Оффлайн Синк (Sync)
+
+### `GET /events/{eventId}/download-data`
+Оффлайн горимд ажиллахын тулд арга хэмжээний бүх өгөгдлийг татана.
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "event": { ...арга хэмжээний бүрэн мэдээлэл... },
+    "tickets": [ ...Ticket объектуудын бүрэн жагсаалт (биометрик дататай)... ],
+    "schedule": [ ...Хуваарь... ],
+    "downloaded_at": "2026-05-05T10:00:00.000000Z"
+  }
+}
+```
+
+---
+
+### `POST /sync`
+Оффлайн горимд хийсэн үйлдлүүдийг сервер рүү илгээнэ.
+
+**Request Body:**
+```json
+{
+  "device_id": "scanner-device-uuid",
+  "records": [
+    {
+      "entity_type": "checkin",
+      "entity_id": 42,
+      "payload": { "synced_at": "2026-06-01T10:05:00Z" }
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "response_code": "success",
+  "response": {
+    "message": "Sync chunks queued successfully",
+    "total_queued": 1,
+    "chunks_count": 1
+  }
+}
+```
+
+---
+
+## 📦 Ticket объектын бүтэц (Ticket Shape)
+
+Бүх `ticket` response дараах бүтэцтэй байна:
+
+```typescript
+interface Ticket {
+  id: string;           // "tk_42" — "tk_" prefix-тай
+  eventId: string;      // "evt_1" — "evt_" prefix-тай
+  eventTitle: string;
+  eventDate: string;    // "2026-06-01"
+  venue: string;
+  tierName: string;     // "VIP", "General" гэх мэт
+  pricePaid: number;
+  buyer: {
+    fullName: string;
+    email: string;
+    phone: string;
+    dateOfBirth: string;
+    nationalId: string;
+  };
+  biometric: {
+    snapshot: string;   // base64 зураг
+    enrolledAt: string; // ISO datetime
+  };
+  status: "valid" | "redeemed";
+  createdAt: string;    // ISO datetime
+  redeemedAt: string | null;
+}
+```
+
+---
+
+## ⚠️ Статус кодууд
+
+| statusid | Утга |
+|---|---|
+| `1` | Идэвхтэй — API-ууд харуулна |
+| `-1` | Устгагдсан (Soft Delete) — API-ууд харуулахгүй |

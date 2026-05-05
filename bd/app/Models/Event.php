@@ -16,7 +16,13 @@ class Event extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'description', 'start_time', 'end_time', 'location', 'map_image_url', 'settings'
+        'name',
+        'description',
+        'start_time',
+        'end_time',
+        'location',
+        'map_image_url',
+        'settings'
     ];
 
     protected $casts = [
@@ -25,9 +31,24 @@ class Event extends Model
         'end_time' => 'datetime',
     ];
 
-    public function schedules() { return $this->hasMany(Schedule::class); }
-    public function tickets() { return $this->hasMany(Ticket::class); }
-    public function messages() { return $this->hasMany(Message::class); }
-    public function checkins() { return $this->hasMany(Checkin::class); }
-    public function notifications() { return $this->hasMany(Notification::class); }
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class);
+    }
+    public function tickets()
+    {
+        return $this->hasMany(Ticket::class);
+    }
+    public function messages()
+    {
+        return $this->hasMany(Message::class);
+    }
+    public function checkins()
+    {
+        return $this->hasMany(Checkin::class);
+    }
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
 }

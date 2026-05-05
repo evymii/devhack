@@ -12,12 +12,24 @@ class EventZone extends Model
     protected $table = 'event_zones';
 
     protected $fillable = [
-        'event_id', 'name', 'name2', 'type', 'coordinates', 'color', 'capacity', 'statusid', 'created_by', 'updated_by'
+        'event_id',
+        'name',
+        'name2',
+        'type',
+        'coordinates',
+        'color',
+        'capacity',
+        'statusid',
+        'created_by',
+        'updated_by'
     ];
 
     protected $casts = [
         'coordinates' => 'array',
     ];
 
-    public function event() { return $this->belongsTo(Event::class); }
+    public function event()
+    {
+        return $this->belongsTo(Event::class);
+    }
 }
