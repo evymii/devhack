@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Exceptions\AxiomException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
 use Illuminate\Database\QueryException;
@@ -37,18 +38,25 @@ class Handler extends ExceptionHandler
                     return null; 
                 }
 
+                if ($e instanceof AxiomException) {
+                    return response()->json([
+                        'response_code' => 'error',
+                        'response' => $e->getMessage(),
+                    ], 400, [], JSON_UNESCAPED_UNICODE);
+                }
+
                 if ($e instanceof QueryException || $e instanceof PDOException) {
                     return response()->json([
-                        'success' => false,
-                        'message' => 'Мэдээллийн системтэй ажиллахад алдаа гарлаа',
-                    ], 500);
+                        'response_code' => 'error',
+                        'response' => 'Мэдээллийн системтэй ажиллахад алдаа гарлаа',
+                    ], 500, [], JSON_UNESCAPED_UNICODE);
                 }
 
                 // Mask all other generic server errors
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Суурь системд алдаа гарлаа',
-                ], 500);
+                    'response_code' => 'error',
+                    'response' => 'Суурь системд алдаа гарлаа',
+                ], 500, [], JSON_UNESCAPED_UNICODE);
             }
         });
 

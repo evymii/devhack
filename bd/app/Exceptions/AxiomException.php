@@ -17,9 +17,8 @@ class AxiomException extends Exception
     public function render($request)
     {
         return response()->json([
-            'success' => false,
-            'message' => $this->getMessage(),
-            'data'    => $this->data,
-        ], 400);
+            'response_code' => 'error',
+            'response' => $this->getMessage(),
+        ], 400, [], JSON_UNESCAPED_UNICODE);
     }
 }

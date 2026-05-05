@@ -4,11 +4,12 @@ import { ArrowRight, Calendar, MapPin, ScanFace, Ticket } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Countdown } from "@/components/countdown"
+import { EventUserTools } from "@/components/event-user-tools"
 import { getEventBySlug, formatDate, formatPrice } from "@/lib/events"
 
 export default async function EventPage(props: PageProps<"/events/[slug]">) {
   const { slug } = await props.params
-  const event = getEventBySlug(slug)
+  const event = await getEventBySlug(slug)
   if (!event) notFound()
 
   return (
@@ -75,6 +76,11 @@ export default async function EventPage(props: PageProps<"/events/[slug]">) {
                 </p>
               </div>
             </div>
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-lg font-medium">Live tools</h2>
+            <EventUserTools eventId={event.id} />
           </section>
         </div>
 

@@ -65,6 +65,10 @@ class TicketService
 
     public function claim(array $data, Ticket $ticket): Ticket
     {
+        if ($ticket->statusid !== 1) {
+            throw new AxiomException('Тасалбар олдсонгүй эсвэл устгагдсан байна.');
+        }
+
         if ($ticket->user_id !== null) {
             throw new AxiomException('Энэ тасалбар аль хэдийн эзэнтэй байна!');
         }
@@ -98,6 +102,10 @@ class TicketService
 
     public function redeem(Ticket $ticket): Ticket
     {
+        if ($ticket->statusid !== 1) {
+            throw new AxiomException('Тасалбар олдсонгүй эсвэл устгагдсан байна.');
+        }
+
         if ($ticket->is_used) {
             throw new AxiomException(
                 'Тасалбар аль хэдийн ашиглагдсан байна. Нэвтэрсэн цаг: ' .
@@ -115,6 +123,10 @@ class TicketService
 
     public function delete(Ticket $ticket): void
     {
+        if ($ticket->statusid !== 1) {
+            throw new AxiomException('Тасалбар олдсонгүй эсвэл устгагдсан байна.');
+        }
+
         if ($ticket->is_used) {
             throw new AxiomException('Аль хэдийн ашиглагдсан тасалбарыг устгах боломжгүй.');
         }

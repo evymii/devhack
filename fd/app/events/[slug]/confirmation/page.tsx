@@ -24,7 +24,7 @@ export default function ConfirmationPage(
 
   useEffect(() => {
     if (!id) return;
-    setTicket(getTicket(id) ?? null);
+    getTicket(id).then((result) => setTicket(result ?? null));
   }, [id]);
 
   if (!ticket) {

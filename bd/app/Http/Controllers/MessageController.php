@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AxiomException;
 use App\Models\Event;
 use Illuminate\Http\Request;
 use App\Services\MessageService;

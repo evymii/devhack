@@ -38,7 +38,7 @@ type ScanState =
   | "no-match"
   | "error";
 
-export default function ScannerPage() {
+export function FaceScannerPanel({ embedded = false }: { embedded?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -59,7 +59,7 @@ export default function ScannerPage() {
   const [matchThreshold, setMatchThreshold] = useState(FACE_MATCH_THRESHOLD);
 
   const hydrateTicketsWithDescriptors = async (): Promise<void> => {
-    const loadedTickets = listTickets();
+    const loadedTickets = await listTickets();
     setTickets(loadedTickets);
     descriptorsRef.current = await hydrateDescriptors(loadedTickets);
   };
@@ -247,10 +247,10 @@ export default function ScannerPage() {
     }
   };
 
-  const admit = () => {
+  const admit = async () => {
     if (!bestMatch) return;
-    redeemTicket(bestMatch.ticket.id);
-    hydrateTicketsWithDescriptors().catch(() => {
+    await redeemTicket(bestMatch.ticket.id);
+    await hydrateTicketsWithDescriptors().catch(() => {
       setStatusMessage("Тасалбар шинэчлэх үед алдаа гарлаа.");
       setScanState("error");
     });
@@ -305,8 +305,16 @@ export default function ScannerPage() {
     };
   }, []);
 
+  const Shell = embedded ? "div" : "main";
+
   return (
-    <main className="mx-auto grid w-full max-w-6xl flex-1 gap-6 px-6 py-10 lg:grid-cols-[1fr_360px]">
+    <Shell
+      className={
+        embedded
+          ? "grid w-full gap-6 lg:grid-cols-[1fr_320px]"
+          : "mx-auto grid w-full max-w-6xl flex-1 gap-6 px-6 py-10 lg:grid-cols-[1fr_360px]"
+      }
+    >
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -526,8 +534,12 @@ export default function ScannerPage() {
           </CardContent>
         </Card>
       </aside>
-    </main>
+    </Shell>
   );
+}
+
+export default function ScannerPage() {
+  return <FaceScannerPanel />;
 }
 
 function ConfidenceLabel({ value }: { value: MatchConfidence }) {

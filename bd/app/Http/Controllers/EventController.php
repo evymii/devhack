@@ -24,20 +24,14 @@ class EventController extends Controller
     /**
      * Арга хэмжээний дэлгэрэнгүй харах
      */
-    public function show(Request $request)
+    public function show(Event $event)
     {
-        $validate = $this->validateMe($request, [
-            'id' => 'required|numeric'
-        ]);
-
-        $eventModel = Event::where('id', $validate['id'])
-            ->where('statusid', 1)
-            ->first();
-
-        if (!$eventModel) {
+        if ($event->statusid !== 1) {
             throw new AxiomException('Арга хэмжээ олдсонгүй эсвэл устгагдсан байна.');
         }
 
-        return $this->success($eventModel);
+        $event->load(['schedules' => fn ($query) => $query->where('statusid', 1)->orderBy('start_time')]);
+
+        return $this->success($event);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AxiomException;
 use App\Models\Event;
 use App\Models\Ticket;
 use App\Services\TicketService;
@@ -97,8 +98,12 @@ class TicketController extends Controller
         } elseif (!empty($validated['biometric_data'])) {
             // Ирээдүйд pgvector эсвэл vector DB ашиглаж cosine similarity хийх хэрэгтэй.
             // Одоогоор шууд string match хийж байна.
+            $biometricData = $validated['biometric_data'];
             $ticket = Ticket::with('event', 'user')
-                ->where('face_embedding', $validated['biometric_data'])
+                ->where(function ($query) use ($biometricData) {
+                    $query->where('face_embedding', $biometricData)
+                        ->orWhere('face_embedding', json_encode($biometricData));
+                })
                 ->where('statusid', 1)
                 ->first();
         }
@@ -108,13 +113,22 @@ class TicketController extends Controller
         }
 
         return $this->success([
-            'message' => 'Тасалбар амжилттай танигдлаа.',
             'ticket' => $ticket->toFrontend(),
+            'is_used' => $ticket->is_used,
+            'redeemed_at' => $ticket->redeemed_at?->toISOString(),
+            'buyer' => [
+                'fullName' => $ticket->buyer['fullName'],
+                'email' => $ticket->buyer['email'],
+            ],
         ]);
     }
 
     public function purchase(Request $request, Event $event, TicketService $ticketService)
     {
+        if ($event->statusid !== 1) {
+            throw new AxiomException('Арга хэмжээ олдсонгүй эсвэл устгагдсан байна.');
+        }
+
         $validated = $this->validateMe($request, [
             'tier_name' => 'required|string|max:80',
             'device_id' => 'required|string',
@@ -141,6 +155,10 @@ class TicketController extends Controller
 
     public function generate(Request $request, Event $event, TicketService $ticketService)
     {
+        if ($event->statusid !== 1) {
+            throw new AxiomException('Арга хэмжээ олдсонгүй эсвэл устгагдсан байна.');
+        }
+
         $validated = $this->validateMe($request, [
             'count' => 'required|integer|min:1|max:500',
             'tier_name' => 'required|string|max:80',

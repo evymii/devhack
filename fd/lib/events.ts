@@ -1,3 +1,5 @@
+import { apiRequest } from "@/lib/api"
+
 export type TicketTier = {
   id: string
   name: string
@@ -22,7 +24,30 @@ export type FestivalEvent = {
   tiers: TicketTier[]
 }
 
-export const events: FestivalEvent[] = [
+type BackendEvent = {
+  id: number
+  name: string
+  description: string | null
+  start_time: string
+  end_time: string | null
+  location: string | null
+  map_image_url?: string | null
+  settings?: {
+    type?: "festival" | "stadium"
+    city?: string
+    tagline?: string
+    lineup?: string[]
+    tiers?: TicketTier[]
+    heroGradient?: string
+  } | null
+  schedules?: unknown[]
+}
+
+type PaginatedEvents = {
+  data: BackendEvent[]
+}
+
+const fallbackEvents: FestivalEvent[] = [
   {
     id: "evt_aurora_2026",
     slug: "aurora-fields-2026",
@@ -170,12 +195,87 @@ export const events: FestivalEvent[] = [
   },
 ]
 
-export function getEventBySlug(slug: string): FestivalEvent | undefined {
-  return events.find((e) => e.slug === slug)
+const fallbackTiers: TicketTier[] = [
+  {
+    id: "General",
+    name: "General",
+    price: 0,
+    perks: ["Event access"],
+    remaining: 100,
+  },
+  {
+    id: "VIP",
+    name: "VIP",
+    price: 50000,
+    perks: ["VIP access", "Priority entry"],
+    remaining: 50,
+  },
+]
+
+const gradients = [
+  "from-fuchsia-500 via-violet-500 to-indigo-600",
+  "from-emerald-500 via-teal-500 to-sky-600",
+  "from-amber-400 via-orange-500 to-rose-500",
+  "from-rose-500 via-red-500 to-zinc-900",
+]
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
+function toFestivalEvent(event: BackendEvent, index = 0): FestivalEvent {
+  const start = event.start_time ? new Date(event.start_time) : new Date()
+  const location = event.location ?? "Ulaanbaatar, Mongolia"
+  const [venue, cityFromLocation] = location.split(",").map((part) => part.trim())
+  const settings = event.settings ?? {}
+
+  return {
+    id: `evt_${event.id}`,
+    slug: `evt_${event.id}`,
+    title: event.name,
+    type: settings.type ?? "festival",
+    venue: venue || location,
+    city: settings.city ?? cityFromLocation ?? "Ulaanbaatar",
+    date: start.toISOString().slice(0, 10),
+    doorsOpen: start.toTimeString().slice(0, 5),
+    heroGradient: settings.heroGradient ?? gradients[index % gradients.length],
+    tagline: settings.tagline ?? event.description ?? event.name,
+    description: event.description ?? "",
+    lineup: settings.lineup ?? [],
+    tiers: settings.tiers?.length ? settings.tiers : fallbackTiers,
+  }
+}
+
+export async function listEvents(): Promise<FestivalEvent[]> {
+  try {
+    const result = await apiRequest<PaginatedEvents>("/events?perPage=50")
+    return result.data.map(toFestivalEvent)
+  } catch {
+    return fallbackEvents
+  }
+}
+
+export async function getEventBySlug(slug: string): Promise<FestivalEvent | undefined> {
+  if (slug.startsWith("evt_")) {
+    try {
+      const id = slug.replace("evt_", "")
+      const event = await apiRequest<BackendEvent>(`/events/${id}`)
+      return toFestivalEvent(event)
+    } catch {
+      return fallbackEvents.find((event) => event.slug === slug || event.id === slug)
+    }
+  }
+
+  const events = await listEvents()
+  return events.find((event) => event.slug === slug)
 }
 
 export function formatPrice(cents: number): string {
-  return `$${cents.toFixed(0)}`
+  return `${cents.toLocaleString("mn-MN")}₮`
 }
 
 export function formatDate(iso: string): string {

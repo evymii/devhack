@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AxiomException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use App\Models\Event;
@@ -44,7 +45,7 @@ class SyncController extends Controller
 
         return $this->success([
             'event' => $event,
-            'tickets' => $tickets,
+            'tickets' => $tickets->map->toFrontend()->values(),
             'schedule' => $schedule,
             'downloaded_at' => now(),
         ]);

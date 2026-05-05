@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AxiomException;
 use Illuminate\Http\Request;
 use App\Models\Event;
 use Illuminate\Support\Str;
@@ -15,6 +16,9 @@ class AdminController extends Controller
             'description' => 'nullable|string',
             'start_time' => 'required|date',
             'end_time' => 'required|date|after:start_time',
+            'location' => 'nullable|string|max:255',
+            'map_image_url' => 'nullable|string|max:255',
+            'settings' => 'nullable|array',
         ]);
 
         $event = Event::create($validated);

@@ -51,4 +51,13 @@ class Event extends Model
     {
         return $this->hasMany(Notification::class);
     }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $id = is_string($value) && str_starts_with($value, 'evt_')
+            ? substr($value, 4)
+            : $value;
+
+        return $this->where($field ?? $this->getRouteKeyName(), $id)->first();
+    }
 }

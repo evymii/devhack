@@ -60,6 +60,15 @@ class Ticket extends Model
         return $this->hasMany(Checkin::class);
     }
 
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $id = is_string($value) && str_starts_with($value, 'tk_')
+            ? substr($value, 3)
+            : $value;
+
+        return $this->where($field ?? $this->getRouteKeyName(), $id)->first();
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
 
     /**

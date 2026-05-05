@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { FaceCapture } from "@/components/face-capture";
-import { getEventBySlug, formatDate, formatPrice } from "@/lib/events";
-import { newBiometricId, newTicketId, saveTicket } from "@/lib/tickets";
+import { type FestivalEvent, getEventBySlug, formatDate, formatPrice } from "@/lib/events";
+import { getDeviceId, newBiometricId, purchaseTicket } from "@/lib/tickets";
+import { getCurrentUser } from "@/lib/auth";
 
 type Step = "info" | "face" | "review";
 
@@ -30,7 +31,9 @@ export default function CheckoutPage(
   const { slug } = use(props.params);
   const search = use(props.searchParams);
   const router = useRouter();
-  const event = useMemo(() => getEventBySlug(slug), [slug]);
+  const [event, setEvent] = useState<FestivalEvent | null>(null);
+  const [loadingEvent, setLoadingEvent] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const tierId =
     typeof search.tier === "string" ? search.tier : event?.tiers[0]?.id;
   const tier = event?.tiers.find((t) => t.id === tierId) ?? event?.tiers[0];
@@ -39,6 +42,31 @@ export default function CheckoutPage(
   const [form, setForm] = useState<Form>(initialForm);
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    getEventBySlug(slug)
+      .then((result) => {
+        if (mounted) setEvent(result ?? null);
+      })
+      .catch((err) => {
+        if (mounted) {
+          setError(err instanceof Error ? err.message : "Тоглолт ачаалахад алдаа гарлаа.");
+        }
+      })
+      .finally(() => {
+        if (mounted) setLoadingEvent(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [slug]);
+
+  if (loadingEvent) {
+    return <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12" />;
+  }
 
   if (!event || !tier) {
     return (
@@ -50,27 +78,30 @@ export default function CheckoutPage(
 
   const formComplete = form.email.trim() && form.nationalId.trim();
 
-  const submit = () => {
+  const submit = async () => {
     if (!snapshot) return;
     setSubmitting(true);
-    const ticketId = newTicketId();
-    saveTicket({
-      id: ticketId,
-      eventId: event.id,
-      eventTitle: event.title,
-      eventDate: event.date,
-      venue: `${event.venue}, ${event.city}`,
-      tierName: tier.name,
-      pricePaid: tier.price,
-      buyer: { ...form },
-      biometric: {
-        snapshot,
-        enrolledAt: new Date().toISOString(),
-      },
-      status: "valid",
-      createdAt: new Date().toISOString(),
-    });
-    router.push(`/events/${event.slug}/confirmation?t=${ticketId}`);
+    setError(null);
+
+    try {
+      const user = await getCurrentUser();
+      if (!user) {
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        return;
+      }
+
+      const ticket = await purchaseTicket({
+        eventId: event.id,
+        tierName: tier.name,
+        deviceId: getDeviceId(),
+        buyer: form,
+        biometricSnapshot: snapshot,
+      });
+      router.push(`/events/${event.slug}/confirmation?t=${ticket.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Тасалбар бүртгэхэд алдаа гарлаа.");
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -96,6 +127,12 @@ export default function CheckoutPage(
         <Connector />
         <StepDot active={step === "review"} done={false} label="3. Хянах" />
       </div>
+
+      {error && (
+        <div className="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
         <section>

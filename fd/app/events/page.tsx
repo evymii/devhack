@@ -2,9 +2,11 @@ import Link from "next/link"
 import { Calendar, MapPin } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { events, formatDate, formatPrice } from "@/lib/events"
+import { listEvents, formatDate, formatPrice } from "@/lib/events"
 
-export default function EventsPage() {
+export default async function EventsPage() {
+  const events = await listEvents()
+
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <div className="mb-10">

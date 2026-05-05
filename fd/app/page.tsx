@@ -15,9 +15,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Countdown } from "@/components/countdown"
 import { LifeClock } from "@/components/life-clock"
-import { events, formatDate, formatPrice } from "@/lib/events"
+import { type FestivalEvent, listEvents, formatDate, formatPrice } from "@/lib/events"
 
-export default function Home() {
+export default async function Home() {
+  const events = await listEvents()
   const featured = events.slice(0, 3)
   const next = events[0]
   const sampleTiers = next.tiers
@@ -33,7 +34,7 @@ export default function Home() {
       <FeatureGrid />
       <ArtistsSection />
       <MementoSection next={next} />
-      <SavedSection />
+      <SavedSection events={events} />
       <Footer />
     </main>
   )
@@ -101,7 +102,7 @@ function ResultsSection() {
   )
 }
 
-function FeaturedEventsSection({ featured }: { featured: typeof events }) {
+function FeaturedEventsSection({ featured }: { featured: FestivalEvent[] }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 py-16">
       <div className="mb-8 flex items-end justify-between">
@@ -143,7 +144,7 @@ function FeaturedEventsSection({ featured }: { featured: typeof events }) {
   )
 }
 
-function CountdownSection({ next }: { next: (typeof events)[number] }) {
+function CountdownSection({ next }: { next: FestivalEvent }) {
   return (
     <section className="border-y bg-secondary/30">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-14 sm:flex-row sm:items-end sm:justify-between">
@@ -224,7 +225,7 @@ function TicketTiersSection({
   tiers,
   eventTitle,
 }: {
-  tiers: (typeof events)[number]["tiers"]
+  tiers: FestivalEvent["tiers"]
   eventTitle: string
 }) {
   return (
@@ -366,7 +367,7 @@ function ArtistsSection() {
   )
 }
 
-function MementoSection({ next }: { next: (typeof events)[number] }) {
+function MementoSection({ next }: { next: FestivalEvent }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-6 py-24">
       <div className="grid items-center gap-12 lg:grid-cols-2">
@@ -398,7 +399,7 @@ function MementoSection({ next }: { next: (typeof events)[number] }) {
   )
 }
 
-function SavedSection() {
+function SavedSection({ events }: { events: FestivalEvent[] }) {
   return (
     <section className="border-t bg-secondary/20">
       <div className="mx-auto grid w-full max-w-6xl gap-10 px-6 py-20 lg:grid-cols-[1fr_1.2fr]">

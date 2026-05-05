@@ -16,6 +16,10 @@ class MockAuth
             ['email' => 'admin@test.com'],
             ['name' => 'Admin Tester', 'password' => bcrypt('12345678'), 'role' => 'admin']
         );
+
+        if ($user->role !== 'admin') {
+            $user->forceFill(['role' => 'admin'])->save();
+        }
         
         Auth::login($user);
 

@@ -1,22 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { Calendar, MapPin, ScanFace, Ticket as TicketIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { listTickets, type Ticket } from "@/lib/tickets";
+import { Input } from "@/components/ui/input";
+import { claimTicket, getDeviceId, listTickets, type Ticket } from "@/lib/tickets";
 import { formatDate, formatPrice } from "@/lib/events";
 
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [claimId, setClaimId] = useState("");
+  const [claimEmail, setClaimEmail] = useState("");
+  const [claimNationalId, setClaimNationalId] = useState("");
+  const [claiming, setClaiming] = useState(false);
+  const [claimMessage, setClaimMessage] = useState<string | null>(null);
+
+  const refreshTickets = async () => {
+    const data = await listTickets();
+    setTickets(data);
+  };
 
   useEffect(() => {
-    setTickets(listTickets());
-    setHydrated(true);
+    refreshTickets().finally(() => setHydrated(true));
   }, []);
+
+  const submitClaim = async (event: FormEvent) => {
+    event.preventDefault();
+    setClaiming(true);
+    setClaimMessage(null);
+
+    try {
+      await claimTicket({
+        ticketId: claimId,
+        deviceId: getDeviceId(),
+        buyer: {
+          email: claimEmail,
+          nationalId: claimNationalId,
+        },
+      });
+      setClaimId("");
+      setClaimEmail("");
+      setClaimNationalId("");
+      await refreshTickets();
+      setClaimMessage("Ticket claimed.");
+    } catch (err) {
+      setClaimMessage(err instanceof Error ? err.message : "Ticket claim failed.");
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   if (!hydrated)
     return <main className="mx-auto w-full max-w-4xl px-6 py-12" />;
@@ -39,6 +75,41 @@ export default function TicketsPage() {
           <Link href="/events">Тоглолт үзэх</Link>
         </Button>
       </div>
+
+      <Card className="mb-6">
+        <CardContent className="space-y-4 p-5">
+          <div>
+            <h2 className="text-base font-medium">Claim a prepared ticket</h2>
+            <p className="text-sm text-muted-foreground">
+              Use this after scanning a QR from an unclaimed ticket.
+            </p>
+          </div>
+          <form className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={submitClaim}>
+            <Input
+              required
+              value={claimId}
+              onChange={(event) => setClaimId(event.target.value)}
+              placeholder="tk_42 or 42"
+            />
+            <Input
+              type="email"
+              value={claimEmail}
+              onChange={(event) => setClaimEmail(event.target.value)}
+              placeholder="email@example.com"
+            />
+            <Input
+              required
+              value={claimNationalId}
+              onChange={(event) => setClaimNationalId(event.target.value)}
+              placeholder="AA12345678"
+            />
+            <Button type="submit" disabled={claiming}>
+              Claim
+            </Button>
+          </form>
+          {claimMessage && <p className="text-sm text-muted-foreground">{claimMessage}</p>}
+        </CardContent>
+      </Card>
 
       {tickets.length === 0 ? (
         <Card>

@@ -190,6 +190,6 @@ class Controller extends BaseController
 
     public function applyPaginate($query, $perPage, $page)
     {
-        return $query->simplePaginate($perPage ?? 50, ['*'], 'page', $page ?? 1);
+        return $query->paginate($perPage ?? 50, ['*'], 'page', $page ?? 1);
     }
 }
