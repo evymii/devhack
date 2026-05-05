@@ -25,9 +25,10 @@ const initialForm: Form = {
   nationalId: "",
 };
 
-export default function CheckoutPage(
-  props: PageProps<"/events/[slug]/checkout">,
-) {
+export default function CheckoutPage(props: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ tier?: string }>;
+}) {
   const { slug } = use(props.params);
   const search = use(props.searchParams);
   const router = useRouter();

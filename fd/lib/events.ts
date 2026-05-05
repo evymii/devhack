@@ -279,7 +279,10 @@ export function formatPrice(cents: number): string {
 }
 
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  // Parse "YYYY-MM-DD" as local time to avoid UTC midnight → previous day shift
+  const [year, month, day] = iso.slice(0, 10).split("-").map(Number)
+  const d = new Date(year, (month ?? 1) - 1, day ?? 1)
+  return d.toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
