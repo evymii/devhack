@@ -15,8 +15,12 @@ class NotificationController extends Controller
             'body' => 'required|string',
             'type' => 'required|string|max:50',
             'is_broadcast' => 'boolean',
-            'user_id' => 'nullable|exists:users,id',
         ]);
+
+        $event = \App\Models\Event::where('id', $validated['event_id'])->where('statusid', 1)->first();
+        if (!$event) {
+            throw new AxiomException('Арга хэмжээ олдсонгүй эсвэл устгагдсан байна.');
+        }
 
         $notification = $notificationService->sendNotification($validated, $request->user()->id);
 

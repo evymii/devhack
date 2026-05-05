@@ -17,7 +17,7 @@ class CheckinService
             throw new AxiomException('Event not found');
         }
 
-        $ticket = Ticket::where('id', $data['ticket_id'])->first();
+        $ticket = Ticket::where('id', $data['ticket_id'])->where('statusid', 1)->first();
 
         if (!$ticket) {
             throw new AxiomException('Тасалбар олдсонгүй.');

@@ -36,8 +36,11 @@ class SyncController extends Controller
 
     public function download(Event $event)
     {
-        $tickets = $event->tickets()->with('user:id,name,email,biometric_data')->get();
-        $schedule = $event->schedules()->get();
+        if ($event->statusid !== 1) {
+            throw new AxiomException('Арга хэмжээ олдсонгүй эсвэл устгагдсан байна.');
+        }
+        $tickets = $event->tickets()->where('statusid', 1)->with('user:id,name,email,biometric_data')->get();
+        $schedule = $event->schedules()->where('statusid', 1)->get();
 
         return $this->success([
             'event' => $event,
