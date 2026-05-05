@@ -8,139 +8,360 @@ import {
   ShieldCheck,
   ShieldX,
   VideoOff,
-  X,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { listTickets, redeemTicket, type Ticket } from "@/lib/tickets";
-import { formatDate } from "@/lib/events";
+import {
+  computeDescriptorFromVideo,
+  FACE_MATCH_THRESHOLD,
+  FACE_MATCH_THRESHOLD_MAX,
+  FACE_MATCH_THRESHOLD_MIN,
+  findBestMatch,
+  hydrateDescriptors,
+  isFaceInsideFocusAreaFromVideo,
+  loadModels,
+  type MatchConfidence,
+  type FaceDetectionFailure,
+  type MatchResult,
+  type TicketDescriptor,
+} from "@/lib/face-matching";
 
 type ScanState =
-  | { kind: "idle" }
-  | { kind: "starting" }
-  | { kind: "live" }
-  | { kind: "matching"; capture: string }
-  | { kind: "matched"; capture: string; ticket: Ticket; confidence: number }
-  | { kind: "no-match"; capture: string }
-  | { kind: "error"; message: string };
+  | "idle"
+  | "models-loading"
+  | "camera-ready"
+  | "matching"
+  | "matched"
+  | "no-match"
+  | "error";
 
 export default function ScannerPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [state, setState] = useState<ScanState>({ kind: "idle" });
+  const descriptorsRef = useRef<TicketDescriptor[]>([]);
+  const modelsLoadedRef = useRef(false);
+  const isMatchingRef = useRef(false);
+
+  const [scanState, setScanState] = useState<ScanState>("idle");
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const [capture, setCapture] = useState<string | null>(null);
+  const [bestMatch, setBestMatch] = useState<MatchResult | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [noMatchReason, setNoMatchReason] = useState<
+    "no-face" | "biometric-mismatch" | "partial-face" | "outside-focus-area" | "face-too-small" | null
+  >(null);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isInFocusArea, setIsInFocusArea] = useState<boolean | null>(null);
+  const [matchThreshold, setMatchThreshold] = useState(FACE_MATCH_THRESHOLD);
 
-  useEffect(() => {
-    setTickets(listTickets());
-    setHydrated(true);
-  }, []);
-
-  const refreshTickets = () => setTickets(listTickets());
-
-  const stop = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
+  const hydrateTicketsWithDescriptors = async (): Promise<void> => {
+    const loadedTickets = listTickets();
+    setTickets(loadedTickets);
+    descriptorsRef.current = await hydrateDescriptors(loadedTickets);
   };
 
   const start = async () => {
-    setState({ kind: "starting" });
+    setStatusMessage(null);
+    setNoMatchReason(null);
+    setBestMatch(null);
+    setCapture(null);
+    setIsVideoReady(false);
+    setScanState("models-loading");
+
+    try {
+      if (!modelsLoadedRef.current) {
+        await loadModels();
+        modelsLoadedRef.current = true;
+      }
+      await hydrateTicketsWithDescriptors();
+    } catch (error) {
+      const detail = error instanceof Error ? ` (${error.message})` : "";
+      setStatusMessage(`Model ачаалалт амжилтгүй.${detail}`);
+      setScanState("error");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 720 },
-          height: { ideal: 540 },
-        },
+        video: { facingMode: "user", width: 720, height: 540 },
         audio: false,
       });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        await new Promise<void>((resolve, reject) => {
+          const video = videoRef.current;
+          if (!video) {
+            reject(new Error("Видео элемент олдсонгүй"));
+            return;
+          }
+
+          const onLoadedMetadata = () => {
+            cleanup();
+            resolve();
+          };
+          const onError = () => {
+            cleanup();
+            reject(new Error("Камерын metadata ачаалж чадсангүй"));
+          };
+          const cleanup = () => {
+            video.removeEventListener("loadedmetadata", onLoadedMetadata);
+            video.removeEventListener("error", onError);
+          };
+
+          video.addEventListener("loadedmetadata", onLoadedMetadata);
+          video.addEventListener("error", onError);
+          if (video.readyState >= 1) {
+            cleanup();
+            resolve();
+          }
+        });
         await videoRef.current.play();
       }
-      setState({ kind: "live" });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Camera access denied.";
-      setState({ kind: "error", message: msg });
+      setIsVideoReady(true);
+      setIsInFocusArea(null);
+      setScanState("camera-ready");
+    } catch {
+      setStatusMessage(
+        "Камерт хандах боломжгүй байна. Camera permission-оо зөвшөөрөөд дахин оролдоно уу.",
+      );
+      setScanState("error");
     }
   };
 
-  const scan = () => {
+  const getCaptureFromVideo = (): string | null => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-    const w = video.videoWidth || 720;
-    const h = video.videoHeight || 540;
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.translate(w, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0, w, h);
-    const data = canvas.toDataURL("image/jpeg", 0.85);
-    setState({ kind: "matching", capture: data });
+    if (!video || !canvas) {
+      return null;
+    }
 
-    const valid = listTickets().filter((t) => t.status === "valid");
-    setTimeout(() => {
-      if (valid.length === 0) {
-        setState({ kind: "no-match", capture: data });
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (!width || !height) {
+      return null;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) {
+      return null;
+    }
+
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.translate(width, 0);
+    context.scale(-1, 1);
+    context.drawImage(video, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.88);
+  };
+
+  const scan = async () => {
+    if (isMatchingRef.current) {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) {
+      setStatusMessage("Камер бэлэн биш байна. Камераа дахин асаана уу.");
+      setScanState("error");
+      return;
+    }
+    if (!isVideoReady) {
+      setStatusMessage("Камер дөнгөж асаж байна. 1-2 секунд хүлээгээд дахин оролдоно уу.");
+      setNoMatchReason("no-face");
+      setScanState("no-match");
+      return;
+    }
+
+    const frameCapture = getCaptureFromVideo();
+    if (!frameCapture) {
+      setStatusMessage("Видео frame бэлэн болоогүй байна. Камер луу ойртоод дахин оролдоно уу.");
+      setNoMatchReason(null);
+      setScanState("camera-ready");
+      return;
+    }
+
+    setCapture(frameCapture);
+    setNoMatchReason(null);
+    setBestMatch(null);
+    setStatusMessage(null);
+    setScanState("matching");
+    isMatchingRef.current = true;
+
+    try {
+      const liveResult = await computeDescriptorFromVideo(video);
+      if (!liveResult) {
+        setNoMatchReason("no-face");
+        setStatusMessage("Царай олдсонгүй");
+        setScanState("no-match");
         return;
       }
-      const ticket = valid[0];
-      const confidence = 0.91 + Math.random() * 0.07;
-      setState({ kind: "matched", capture: data, ticket, confidence });
-    }, 1100);
+
+      if (descriptorsRef.current.length === 0) {
+        setStatusMessage("Хүчинтэй тасалбарын царайны өгөгдөл олдсонгүй.");
+        setScanState("no-match");
+        return;
+      }
+
+      const match = findBestMatch(
+        liveResult.descriptor,
+        descriptorsRef.current,
+        matchThreshold,
+      );
+      if (!match) {
+        setNoMatchReason("biometric-mismatch");
+        setStatusMessage(
+          "Таны царай таарахгүй байна, кассын ажилтантай уулзана уу",
+        );
+        setScanState("no-match");
+        return;
+      }
+
+      setBestMatch(match);
+      setScanState("matched");
+    } catch (error) {
+      const code = (error as { code?: FaceDetectionFailure } | null)?.code;
+      if (code === "partial-face") {
+        setNoMatchReason("partial-face");
+        setStatusMessage("Царайгаа бүтэн харуулна уу.");
+        setScanState("no-match");
+      } else if (code === "outside-focus-area") {
+        setNoMatchReason("outside-focus-area");
+        setStatusMessage("Царайгаа хүрээний төв хэсэгт байрлуулна уу.");
+        setScanState("no-match");
+      } else if (code === "face-too-small") {
+        setNoMatchReason("face-too-small");
+        setStatusMessage("Царайгаа камер луу ойртуулна уу");
+        setScanState("no-match");
+      } else {
+        setStatusMessage("Тулгалт хийх явцад алдаа гарлаа. Дахин оролдоно уу.");
+        setScanState("error");
+      }
+    } finally {
+      isMatchingRef.current = false;
+    }
   };
 
   const admit = () => {
-    if (state.kind !== "matched") return;
-    redeemTicket(state.ticket.id);
-    refreshTickets();
-    setState({ kind: "live" });
+    if (!bestMatch) return;
+    redeemTicket(bestMatch.ticket.id);
+    hydrateTicketsWithDescriptors().catch(() => {
+      setStatusMessage("Тасалбар шинэчлэх үед алдаа гарлаа.");
+      setScanState("error");
+    });
+    setBestMatch(null);
+    setCapture(null);
+    setScanState("camera-ready");
   };
 
-  const reject = () => setState({ kind: "live" });
+  const retry = () => {
+    setBestMatch(null);
+    setCapture(null);
+    setNoMatchReason(null);
+    setStatusMessage(null);
+    setScanState("camera-ready");
+  };
 
-  useEffect(() => () => stop(), []);
+  useEffect(() => {
+    if (scanState !== "camera-ready" || !isVideoReady) {
+      setIsInFocusArea(null);
+      return;
+    }
+
+    let cancelled = false;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const timer = window.setInterval(async () => {
+      if (cancelled || isMatchingRef.current) return;
+      const inFocus = await isFaceInsideFocusAreaFromVideo(video);
+      if (!cancelled) {
+        setIsInFocusArea(inFocus);
+      }
+    }, 650);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [scanState, isVideoReady]);
+
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    return () => {
+      isMatchingRef.current = false;
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      if (videoElement) {
+        videoElement.srcObject = null;
+      }
+      setIsVideoReady(false);
+      setIsInFocusArea(null);
+    };
+  }, []);
 
   return (
     <main className="mx-auto grid w-full max-w-6xl flex-1 gap-6 px-6 py-10 lg:grid-cols-[1fr_360px]">
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm uppercase tracking-widest text-muted-foreground">
-              Скан
-            </p>
-            <h1 className="mt-1 text-2xl font-light tracking-tight">
-              Хаалганы скан
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Үзэгчийн царайг авч тасалбарыг нь баталгаажуулна уу.
-            </p>
+            <h1 className="text-2xl font-light tracking-tight">Хаалганы скан</h1>
+            <p className="text-sm text-muted-foreground">Биометр танилт идэвхтэй байна.</p>
           </div>
           <Badge variant="outline" className="gap-1">
             <ShieldCheck className="size-3.5" /> Ажилтны горим
           </Badge>
         </div>
 
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4 p-4">
+            <p className="text-sm text-muted-foreground">Distance threshold</p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={matchThreshold === FACE_MATCH_THRESHOLD_MIN ? "default" : "outline"}
+                onClick={() => setMatchThreshold(FACE_MATCH_THRESHOLD_MIN)}
+              >
+                0.40
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={matchThreshold === FACE_MATCH_THRESHOLD ? "default" : "outline"}
+                onClick={() => setMatchThreshold(FACE_MATCH_THRESHOLD)}
+              >
+                {FACE_MATCH_THRESHOLD.toFixed(2)}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={matchThreshold === FACE_MATCH_THRESHOLD_MAX ? "default" : "outline"}
+                onClick={() => setMatchThreshold(FACE_MATCH_THRESHOLD_MAX)}
+              >
+                0.45
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="overflow-hidden">
           <div className="relative aspect-video bg-zinc-950">
-            {state.kind === "matched" ||
-            state.kind === "no-match" ||
-            state.kind === "matching" ? (
-              <img
-                src={
-                  state.kind !== "matching" || state.capture
-                    ? state.capture
-                    : ""
-                }
-                alt="Scan capture"
-                className="h-full w-full object-cover"
-              />
+            {(scanState === "matching" ||
+              scanState === "matched" ||
+              scanState === "no-match" ||
+              scanState === "error") &&
+            capture ? (
+                <img
+                  src={capture}
+                  alt="Captured live face frame"
+                  className="h-full w-full object-cover"
+                />
             ) : (
               <video
                 ref={videoRef}
@@ -149,123 +370,134 @@ export default function ScannerPage() {
                 className="h-full w-full -scale-x-100 object-cover"
               />
             )}
+            {(scanState === "camera-ready" || scanState === "matching") && (
+              <div
+                className={`pointer-events-none absolute left-1/2 top-1/2 h-[76%] w-[52%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-dashed ${
+                  isInFocusArea === true
+                    ? "border-emerald-400/90"
+                    : isInFocusArea === false
+                      ? "border-amber-400/90"
+                      : "border-white/60"
+                }`}
+              />
+            )}
             <canvas ref={canvasRef} className="hidden" />
 
-            {state.kind === "idle" && (
+            {scanState === "idle" && (
               <Overlay>
                 <ScanFace className="size-12 opacity-80" />
-                <p className="max-w-sm text-center text-sm text-zinc-300">
-                  Хаалган дээрх үзэгчдийг таниулахаар камераа асаана уу.
-                </p>
-                <Button size="lg" onClick={start}>
-                  <Camera className="size-4" /> Камер асаах
-                </Button>
+                <Button size="lg" onClick={start}>Камер асаах</Button>
               </Overlay>
             )}
 
-            {state.kind === "starting" && (
+            {scanState === "models-loading" && (
               <Overlay>
-                <p className="text-sm text-zinc-300">Камер асаалаа байна…</p>
+                <Loader2 className="size-8 animate-spin" />
+                <p>AI Моделиудыг ачаалж байна...</p>
               </Overlay>
             )}
 
-            {state.kind === "live" && (
-              <>
-                <div className="pointer-events-none absolute inset-10 rounded-3xl border-2 border-dashed border-emerald-400/70" />
-                <div className="absolute inset-x-0 bottom-4 flex justify-center">
-                  <Button size="lg" onClick={scan}>
-                    <ScanFace className="size-4" /> Царай таних
-                  </Button>
-                </div>
-              </>
+            {scanState === "camera-ready" && (
+              <div className="absolute inset-x-0 bottom-4 flex justify-center">
+                <Button
+                  size="lg"
+                  onClick={scan}
+                  disabled={!isVideoReady}
+                  className="rounded-full shadow-xl"
+                >
+                  <Camera className="mr-2 size-4" /> Царай уншуулах
+                </Button>
+              </div>
             )}
 
-            {state.kind === "matching" && (
+            {scanState === "matching" && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                <div className="flex items-center gap-3 rounded-full bg-background/90 px-4 py-2 text-sm font-medium">
-                  <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
-                  Бүртгэгдсэн царайтай тулгаж байна…
+                <div className="flex items-center gap-3 rounded-full bg-background/90 px-4 py-2 text-sm">
+                  <Loader2 className="size-4 animate-spin text-emerald-500" />
+                  Тулгалт хийж байна...
                 </div>
               </div>
             )}
 
-            {state.kind === "matched" && (
-              <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/95 px-3 py-1.5 text-sm font-medium text-white">
-                <Check className="size-4" />
-                Тааралцлаа · {(state.confidence * 100).toFixed(1)}%
+            {scanState === "matched" && bestMatch && (
+              <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-sm font-medium text-white">
+                <Check className="size-4" /> {(100 - bestMatch.distance * 100).toFixed(1)}% Тохирлоо
               </div>
-            )}
-
-            {state.kind === "no-match" && (
-              <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-destructive/95 px-3 py-1.5 text-sm font-medium text-white">
-                <X className="size-4" />
-                Тааралцсангүй
-              </div>
-            )}
-
-            {state.kind === "error" && (
-              <Overlay>
-                <VideoOff className="size-10" />
-                <p className="text-sm text-zinc-300">{state.message}</p>
-                <Button variant="secondary" onClick={start}>
-                  Дахин оролдох
-                </Button>
-              </Overlay>
             )}
           </div>
         </Card>
 
-        {state.kind === "matched" && (
-          <Card>
+        {statusMessage && (
+          <Card
+            className={
+              scanState === "error"
+                ? "border-red-300 bg-red-50"
+                : scanState === "no-match"
+                  ? "border-amber-300 bg-amber-50"
+                  : "border-zinc-200"
+            }
+          >
+            <CardContent className="p-4 text-sm">{statusMessage}</CardContent>
+          </Card>
+        )}
+
+        {scanState === "matched" && bestMatch && (
+          <Card className="border-emerald-500 bg-emerald-50/50">
             <CardContent className="flex items-center gap-4 p-4">
               <img
-                src={state.ticket.biometric.snapshot}
-                alt="Enrolled face"
-                className="size-20 shrink-0 rounded-md object-cover"
+                src={bestMatch.ticket.biometric.snapshot}
+                alt="Matched ticket face"
+                className="size-20 rounded-md object-cover border-2 border-emerald-500"
               />
               <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium">
-                    {state.ticket.buyer.nationalId}
-                  </h3>
-                  <Badge variant="success">Хүчинтэй</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {state.ticket.eventTitle} — {state.ticket.tierName}
-                </p>
+                <h3 className="text-lg font-bold">{bestMatch.ticket.buyer.nationalId}</h3>
+                <p className="text-sm">{bestMatch.ticket.eventTitle}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatDate(state.ticket.eventDate)} · {state.ticket.venue}
+                  Distance: {bestMatch.distance.toFixed(4)} · Confidence:{" "}
+                  <ConfidenceLabel value={bestMatch.confidence} />
                 </p>
               </div>
               <div className="flex flex-col gap-2">
-                <Button onClick={admit} size="lg">
-                  <Check className="size-4" /> Оруулах
-                </Button>
-                <Button variant="outline" size="sm" onClick={reject}>
-                  <X className="size-4" /> Татгалзах
-                </Button>
+                <Button onClick={admit} size="lg" className="bg-emerald-600 hover:bg-emerald-700">Оруулах</Button>
+                <Button variant="ghost" onClick={retry}>Цуцлах</Button>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {state.kind === "no-match" && (
-          <Card>
-            <CardContent className="flex items-center justify-between gap-4 p-4">
+        {scanState === "no-match" && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
-                <div className="grid size-10 place-items-center rounded-md bg-destructive/15 text-destructive">
-                  <ShieldX className="size-5" />
-                </div>
-                <div>
-                  <h3 className="font-medium">Бүртгэлтэй тасалбар олдсонгүй</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Үзэгчийг кассын лангуу руу чиглүүлж дахин бүртгүүлэх эсвэл
-                    буцаалт хийнэ үү.
-                  </p>
-                </div>
+                <ShieldX className="text-red-500" />
+                <p className="font-medium text-red-700">
+                  {noMatchReason === "biometric-mismatch"
+                    ? "Таны царай таарахгүй байна, кассын ажилтантай уулзана уу"
+                    : noMatchReason === "partial-face"
+                      ? "Царайгаа бүтэн харуулна уу"
+                      : noMatchReason === "outside-focus-area"
+                        ? "Царайгаа хүрээний төв хэсэгт байрлуулна уу"
+                        : noMatchReason === "face-too-small"
+                          ? "Царайгаа камер луу ойртуулна уу"
+                          : "Царай олдсонгүй"}
+                </p>
               </div>
-              <Button variant="outline" onClick={reject}>
-                Дахин оролдох
+              <Button variant="outline" onClick={retry}>Дахин оролдох</Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {scanState === "error" && (
+          <Card className="border-red-300 bg-red-50">
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <VideoOff className="text-red-500" />
+                <p className="font-medium text-red-700">
+                  {statusMessage ?? "Системийн алдаа гарлаа. Дахин эхлүүлнэ үү."}
+                </p>
+              </div>
+              <Button variant="outline" onClick={start}>
+                Дахин эхлүүлэх
               </Button>
             </CardContent>
           </Card>
@@ -274,49 +506,23 @@ export default function ScannerPage() {
 
       <aside>
         <Card className="sticky top-20">
-          <CardContent className="space-y-3 p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-medium">Бүртгэгдсэн царай</h2>
-              <span className="text-xs text-muted-foreground">
-                {hydrated ? `нийт ${tickets.length}` : ""}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Сүүлд бүртгүүлсэн царайнууд. Скан хамгийн ойролцоо тохирлыг
-              буцаана.
-            </p>
-            {hydrated && tickets.length === 0 && (
-              <p className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-                Одоохондоо тасалбар байхгүй. Эхлээд тасалбар авч скан туршаарай.
-              </p>
-            )}
-            <ul className="space-y-2">
-              {tickets.slice(0, 8).map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center gap-3 rounded-md border p-2"
-                >
+          <CardContent className="p-5 space-y-4">
+            <h2 className="font-medium">Бүртгэлтэй үзэгчид ({tickets.length})</h2>
+            <div className="space-y-2 max-h-[500px] overflow-y-auto">
+              {tickets.map((t) => (
+                <div key={t.id} className="flex items-center gap-3 p-2 border rounded-lg text-xs">
                   <img
                     src={t.biometric.snapshot}
-                    alt=""
-                    className="size-10 shrink-0 rounded object-cover"
+                    alt="Ticket holder face"
+                    className="size-8 rounded-full object-cover"
                   />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {t.buyer.nationalId}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {t.eventTitle}
-                    </p>
+                  <div className="flex-1 truncate">
+                    <p className="font-bold">{t.buyer.nationalId}</p>
+                    <p className="opacity-60">{t.status === "valid" ? "Хүчинтэй" : "Орсон"}</p>
                   </div>
-                  <Badge
-                    variant={t.status === "valid" ? "success" : "secondary"}
-                  >
-                    {t.status === "valid" ? "Хүчинтэй" : "Нэвтэрсэн"}
-                  </Badge>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </CardContent>
         </Card>
       </aside>
@@ -324,9 +530,19 @@ export default function ScannerPage() {
   );
 }
 
+function ConfidenceLabel({ value }: { value: MatchConfidence }) {
+  if (value === "high") {
+    return <span className="font-medium text-emerald-700">High</span>;
+  }
+  if (value === "medium") {
+    return <span className="font-medium text-amber-700">Medium</span>;
+  }
+  return <span className="font-medium text-red-700">Low</span>;
+}
+
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/50 px-6 text-center text-zinc-100">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 px-6 text-center text-white">
       {children}
     </div>
   );

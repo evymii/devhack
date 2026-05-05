@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 
 function diff(target: number) {
   const ms = Math.max(0, target - Date.now())
@@ -11,7 +12,7 @@ function diff(target: number) {
   return { day, hr, min, sec }
 }
 
-export function Countdown({
+function CountdownComponent({
   isoDate,
   size = "md",
 }: {
@@ -42,10 +43,32 @@ export function Countdown({
 function Cell({ n, l, num, lbl }: { n: number; l: string; num: string; lbl: string }) {
   return (
     <div className="flex flex-col items-center">
-      <span className={`${num} font-light leading-none tabular-nums tracking-tight`}>
+      <span className={`${num} font-light leading-none tabular-nums tracking-tight`} suppressHydrationWarning>
         {String(n).padStart(2, "0")}
       </span>
       <span className={`${lbl} mt-1 text-muted-foreground`}>{l}</span>
     </div>
   )
 }
+
+export const Countdown = dynamic(() => Promise.resolve(CountdownComponent), {
+  ssr: false,
+  loading: () => <div className="flex items-end gap-4">
+    <div className="flex flex-col items-center">
+      <span className="text-3xl font-light leading-none tabular-nums tracking-tight">--</span>
+      <span className="text-xs mt-1 text-muted-foreground">Өдөр</span>
+    </div>
+    <div className="flex flex-col items-center">
+      <span className="text-3xl font-light leading-none tabular-nums tracking-tight">--</span>
+      <span className="text-xs mt-1 text-muted-foreground">Цаг</span>
+    </div>
+    <div className="flex flex-col items-center">
+      <span className="text-3xl font-light leading-none tabular-nums tracking-tight">--</span>
+      <span className="text-xs mt-1 text-muted-foreground">Минут</span>
+    </div>
+    <div className="flex flex-col items-center">
+      <span className="text-3xl font-light leading-none tabular-nums tracking-tight">--</span>
+      <span className="text-xs mt-1 text-muted-foreground">Секунд</span>
+    </div>
+  </div>
+})
