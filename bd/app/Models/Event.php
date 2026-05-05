@@ -29,4 +29,5 @@ class Event extends Model
     public function tickets() { return $this->hasMany(Ticket::class); }
     public function messages() { return $this->hasMany(Message::class); }
     public function checkins() { return $this->hasMany(Checkin::class); }
+    public function notifications() { return $this->hasMany(Notification::class); }
 }
