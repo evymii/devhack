@@ -17,7 +17,7 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        $user = User::where('email', $validated['email'])->where('statusid', 1)->first();
 
         if (!$user || !Hash::check($validated['password'], $user->password)) {
             throw new AxiomException('Email эсвэл password буруу байна.');

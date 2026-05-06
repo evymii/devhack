@@ -519,11 +519,17 @@ export function FaceScannerPanel({ embedded = false }: { embedded?: boolean }) {
             <div className="space-y-2 max-h-[500px] overflow-y-auto">
               {tickets.map((t) => (
                 <div key={t.id} className="flex items-center gap-3 p-2 border rounded-lg text-xs">
-                  <img
-                    src={t.biometric.snapshot}
-                    alt="Ticket holder face"
-                    className="size-8 rounded-full object-cover"
-                  />
+                  {t.biometric.snapshot ? (
+                    <img
+                      src={t.biometric.snapshot}
+                      alt="Ticket holder face"
+                      className="size-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
+                      ?
+                    </div>
+                  )}
                   <div className="flex-1 truncate">
                     <p className="font-bold">{t.buyer.nationalId}</p>
                     <p className="opacity-60">{t.status === "valid" ? "Хүчинтэй" : "Орсон"}</p>
