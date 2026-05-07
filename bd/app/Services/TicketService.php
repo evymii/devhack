@@ -31,9 +31,12 @@ class TicketService
     public function purchase(array $data, Event $event, int $userId): Ticket
     {
         $available = Ticket::where('event_id', $event->id)
-            ->where('tier_name', $data['tier_name'])
             ->where('statusid', 1)
             ->whereNull('user_id')
+            ->where(function ($query) use ($data) {
+                $query->where('tier_name', $data['tier_name'])
+                    ->orWhere('type', $data['tier_name']);
+            })
             ->first();
 
         if (!$available) {
@@ -43,6 +46,7 @@ class TicketService
         $payload = [
             'user_id' => $userId,
             'bound_device_id' => $data['device_id'],
+            'seat_label' => $data['seat_label'] ?? null,
         ];
 
         if (!empty($data['buyer'])) {

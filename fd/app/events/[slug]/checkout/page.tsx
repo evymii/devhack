@@ -1,29 +1,30 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Lock, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Armchair, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { FaceCapture } from "@/components/face-capture";
 import { type FestivalEvent, getEventBySlug, formatDate, formatPrice } from "@/lib/events";
 import { getDeviceId, newBiometricId, purchaseTicket } from "@/lib/tickets";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, type CurrentUser } from "@/lib/auth";
 
-type Step = "info" | "face" | "review";
+type Step = "seat" | "face" | "review";
 
-type Form = {
-  email: string;
-  nationalId: string;
-};
+function makeSeats(count: number): string[] {
+  return Array.from({ length: Math.max(0, count) }, (_, index) => {
+  const rowIndex = Math.floor(index / 20);
+  const seatNumber = (index % 20) + 1;
+  const row = String.fromCharCode(65 + rowIndex);
+  return `${row}${seatNumber.toString().padStart(2, "0")}`;
+  });
+}
 
-const initialForm: Form = {
-  email: "",
-  nationalId: "",
-};
+function nationalIdOf(user: CurrentUser | null): string {
+  return user?.national_id ?? user?.nationalId ?? "";
+}
 
 export default function CheckoutPage(props: {
   params: Promise<{ slug: string }>;
@@ -33,16 +34,21 @@ export default function CheckoutPage(props: {
   const search = use(props.searchParams);
   const router = useRouter();
   const [event, setEvent] = useState<FestivalEvent | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
+  const [loadingUser, setLoadingUser] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>("seat");
+  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
   const tierId =
     typeof search.tier === "string" ? search.tier : event?.tiers[0]?.id;
   const tier = event?.tiers.find((t) => t.id === tierId) ?? event?.tiers[0];
 
-  const [step, setStep] = useState<Step>("info");
-  const [form, setForm] = useState<Form>(initialForm);
-  const [snapshot, setSnapshot] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const seats = useMemo(() => makeSeats(tier?.capacity ?? tier?.remaining ?? 0), [tier?.capacity, tier?.remaining]);
+  const unavailableSeats = useMemo(() => new Set(tier?.takenSeats ?? []), [tier?.takenSeats]);
 
   useEffect(() => {
     let mounted = true;
@@ -60,12 +66,24 @@ export default function CheckoutPage(props: {
         if (mounted) setLoadingEvent(false);
       });
 
+    getCurrentUser()
+      .then((user) => {
+        if (!mounted) return;
+        setCurrentUser(user);
+        if (!user) {
+          window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        }
+      })
+      .finally(() => {
+        if (mounted) setLoadingUser(false);
+      });
+
     return () => {
       mounted = false;
     };
   }, [slug]);
 
-  if (loadingEvent) {
+  if (loadingEvent || loadingUser) {
     return <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12" />;
   }
 
@@ -77,25 +95,22 @@ export default function CheckoutPage(props: {
     );
   }
 
-  const formComplete = form.email.trim() && form.nationalId.trim();
-
   const submit = async () => {
-    if (!snapshot) return;
+    if (!snapshot || !selectedSeat || !currentUser) return;
     setSubmitting(true);
     setError(null);
 
     try {
-      const user = await getCurrentUser();
-      if (!user) {
-        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-        return;
-      }
-
       const ticket = await purchaseTicket({
         eventId: event.id,
         tierName: tier.name,
         deviceId: getDeviceId(),
-        buyer: form,
+        seatLabel: selectedSeat,
+        buyer: {
+          fullName: currentUser.name,
+          email: currentUser.email,
+          nationalId: nationalIdOf(currentUser),
+        },
         biometricSnapshot: snapshot,
       });
       router.push(`/events/${event.slug}/confirmation?t=${ticket.id}`);
@@ -106,7 +121,7 @@ export default function CheckoutPage(props: {
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
       <div className="mb-6">
         <Button variant="ghost" size="sm" onClick={() => router.back()}>
           <ArrowLeft className="size-4" /> Буцах
@@ -114,17 +129,9 @@ export default function CheckoutPage(props: {
       </div>
 
       <div className="mb-8 flex items-center gap-2">
-        <StepDot
-          active={step === "info"}
-          done={step !== "info"}
-          label="1. Мэдээлэл"
-        />
+        <StepDot active={step === "seat"} done={step !== "seat"} label="1. Суудал" />
         <Connector />
-        <StepDot
-          active={step === "face"}
-          done={step === "review"}
-          label="2. Царай"
-        />
+        <StepDot active={step === "face"} done={step === "review"} label="2. Царай" />
         <Connector />
         <StepDot active={step === "review"} done={false} label="3. Хянах" />
       </div>
@@ -137,43 +144,33 @@ export default function CheckoutPage(props: {
 
       <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
         <section>
-          {step === "info" && (
+          {step === "seat" && (
             <Card>
-              <CardContent className="space-y-4 p-6">
+              <CardContent className="space-y-5 p-6">
                 <div>
-                  <h1 className="text-xl font-medium">Таны мэдээлэл</h1>
+                  <h1 className="text-xl font-medium">Суудлаа сонгоно уу</h1>
                   <p className="text-sm text-muted-foreground">
-                    Царайны бүртгэлтэй хамт хадгалагдах ба зөвхөн нэвтрэх
-                    баталгаажуулалтад ашиглана.
+                    Энэ ангилалд нийт {seats.length} суудал байна. Боломжтой суудлаас нэгийг сонгоод царай баталгаажуулалт руу шилжинэ.
                   </p>
                 </div>
-                <Field label="Gmail">
-                  <Input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) =>
-                      setForm({ ...form, email: e.target.value })
-                    }
-                    placeholder="та@gmail.com"
+                {seats.length > 0 ? (
+                  <SeatMap
+                    selectedSeat={selectedSeat}
+                    seats={seats}
+                    unavailableSeats={unavailableSeats}
+                    onSelect={setSelectedSeat}
                   />
-                </Field>
-                <Field label="Регистрийн дугаар">
-                  <Input
-                    value={form.nationalId}
-                    onChange={(e) =>
-                      setForm({ ...form, nationalId: e.target.value })
-                    }
-                    placeholder="АА12345678 эсвэл AA12345678"
-                  />
-                </Field>
-                <div className="flex justify-end pt-2">
-                  <Button
-                    onClick={() => setStep("face")}
-                    disabled={!formComplete}
-                    size="lg"
-                  >
-                    Face ID сонгохд үргэлжлүүлэх{" "}
-                    <ArrowRight className="size-4" />
+                ) : (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Энэ ангилалд ticket pool үүсээгүй байна. Admin хэсгээс ticket нэмсний дараа суудал гарч ирнэ.
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <div className="text-sm text-muted-foreground">
+                    Сонгосон суудал: <span className="font-medium text-foreground">{selectedSeat ?? "-"}</span>
+                  </div>
+                  <Button onClick={() => setStep("face")} disabled={!selectedSeat} size="lg">
+                    Үргэлжлүүлэх <ArrowRight className="size-4" />
                   </Button>
                 </div>
               </CardContent>
@@ -184,12 +181,12 @@ export default function CheckoutPage(props: {
             <Card>
               <CardContent className="space-y-4 p-6">
                 <div>
-                  <h1 className="text-xl font-medium">Face ID - Пасс үг</h1>
+                  <h1 className="text-xl font-medium">Face ID</h1>
                   <p className="text-sm text-muted-foreground">
-                    Сайн гэрэлтэй орчинд камер руу шууд харна уу. Нэг удаа авч
-                    энэхүү тасалбартай холбоно.
+                    Gmail болон регистрийн мэдээллийг таны account-аас авна. Энд зөвхөн тасалбарт холбох царайг баталгаажуулна.
                   </p>
                 </div>
+                <AccountInfo user={currentUser} />
                 <FaceCapture
                   onCapture={(d) => setSnapshot(d || null)}
                   capturedSnapshot={snapshot}
@@ -197,21 +194,13 @@ export default function CheckoutPage(props: {
                 />
                 <div className="flex items-start gap-2 rounded-md border bg-secondary/30 p-3 text-xs text-muted-foreground">
                   <ShieldCheck className="mt-0.5 size-4 shrink-0" />
-                  <p>
-                    Таны царай зөвхөн энэ тасалбартай холбогдсон, буцаашгүй
-                    биометрик загвар хэлбэрээр хадгалагдана. Сурталчилгаа,
-                    гуравдагч этгээдэд огт ашиглахгүй.
-                  </p>
+                  <p>Энэ царай зөвхөн тухайн тасалбарын нэвтрэх баталгаажуулалтад ашиглагдана.</p>
                 </div>
                 <div className="flex justify-between pt-2">
-                  <Button variant="outline" onClick={() => setStep("info")}>
+                  <Button variant="outline" onClick={() => setStep("seat")}>
                     <ArrowLeft className="size-4" /> Буцах
                   </Button>
-                  <Button
-                    onClick={() => setStep("review")}
-                    disabled={!snapshot}
-                    size="lg"
-                  >
+                  <Button onClick={() => setStep("review")} disabled={!snapshot} size="lg">
                     Үргэлжлүүлэх <ArrowRight className="size-4" />
                   </Button>
                 </div>
@@ -223,46 +212,34 @@ export default function CheckoutPage(props: {
             <Card>
               <CardContent className="space-y-5 p-6">
                 <div>
-                  <h1 className="text-xl font-medium">Хянаж төлөх</h1>
+                  <h1 className="text-xl font-medium">Хянах</h1>
                   <p className="text-sm text-muted-foreground">
-                    Загварын төлбөр — бодит мөнгөн гүйлгээ хийгдэхгүй.
+                    Төлбөрийн demo flow. Бодит мөнгөн гүйлгээ хийгдэхгүй.
                   </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
                   <div className="aspect-square overflow-hidden rounded-lg border bg-zinc-900">
-                    {snapshot && (
-                      <img
-                        src={snapshot}
-                        alt="Бүртгэгдсэн царай"
-                        className="h-full w-full object-cover"
-                      />
-                    )}
+                    {snapshot && <img src={snapshot} alt="Бүртгэгдсэн царай" className="h-full w-full object-cover" />}
                   </div>
                   <div className="space-y-2 text-sm">
-                    <Row k="Gmail">{form.email}</Row>
-                    <Row k="Регистрийн дугаар">{form.nationalId}</Row>
+                    <Row k="Gmail">{currentUser?.email}</Row>
+                    <Row k="Регистрийн дугаар">{nationalIdOf(currentUser)}</Row>
+                    <Row k="Суудал">{selectedSeat}</Row>
                     <Row k="Биометрик ID">
-                      <span className="font-mono text-xs">
-                        {newBiometricId().slice(0, 18)}…
-                      </span>
+                      <span className="font-mono text-xs">{newBiometricId().slice(0, 18)}...</span>
                     </Row>
                   </div>
                 </div>
                 <div className="flex items-start gap-2 rounded-md border p-3 text-xs text-muted-foreground">
                   <Lock className="mt-0.5 size-4 shrink-0" />
-                  <p>
-                    Баталгаажуулснаар та царайгаа зөвхөн энэ тоглолтын хаалган
-                    дээрх скантай тулгахыг зөвшөөрнө.
-                  </p>
+                  <p>Баталгаажуулснаар таны account-ийн мэдээлэл болон сонгосон суудал ticket дээр хадгалагдана.</p>
                 </div>
                 <div className="flex justify-between pt-2">
                   <Button variant="outline" onClick={() => setStep("face")}>
                     <ArrowLeft className="size-4" /> Буцах
                   </Button>
                   <Button onClick={submit} disabled={submitting} size="lg">
-                    {submitting
-                      ? "Тасалбар бүртгэж байна…"
-                      : `Баталгаажуулах — ${formatPrice(tier.price)}`}
+                    {submitting ? "Тасалбар бүртгэж байна..." : `Баталгаажуулах - ${formatPrice(tier.price)}`}
                   </Button>
                 </div>
               </CardContent>
@@ -273,16 +250,12 @@ export default function CheckoutPage(props: {
         <aside>
           <Card className="sticky top-20">
             <CardContent className="space-y-4 p-5">
-              <div
-                className={`h-24 rounded-md bg-linear-to-br ${event.heroGradient}`}
-              />
+              <div className={`h-24 rounded-md bg-linear-to-br ${event.heroGradient}`} />
               <div>
                 <Badge variant="outline" className="mb-2">
                   {event.type === "festival" ? "Наадам" : "Стадион"}
                 </Badge>
-                <h2 className="text-base font-medium leading-tight">
-                  {event.title}
-                </h2>
+                <h2 className="text-base font-medium leading-tight">{event.title}</h2>
                 <p className="text-xs text-muted-foreground">
                   {formatDate(event.date)} · {event.venue}
                 </p>
@@ -292,11 +265,10 @@ export default function CheckoutPage(props: {
                   <span>{tier.name}</span>
                   <span className="font-medium">{formatPrice(tier.price)}</span>
                 </div>
-                <ul className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                  {tier.perks.map((p) => (
-                    <li key={p}>· {p}</li>
-                  ))}
-                </ul>
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Суудал</span>
+                  <span>{selectedSeat ?? "Сонгоогүй"}</span>
+                </div>
               </div>
               <div className="border-t pt-3 text-sm">
                 <div className="flex items-center justify-between">
@@ -304,10 +276,8 @@ export default function CheckoutPage(props: {
                   <span>{formatPrice(tier.price)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">
-                    Үйлчилгээний хураамж
-                  </span>
-                  <span className="text-muted-foreground">$0</span>
+                  <span className="text-muted-foreground">Үйлчилгээний хураамж</span>
+                  <span className="text-muted-foreground">0</span>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-base font-semibold">
                   <span>Нийт</span>
@@ -322,17 +292,63 @@ export default function CheckoutPage(props: {
   );
 }
 
-function Field({
-  label,
-  children,
+function SeatMap({
+  selectedSeat,
+  seats,
+  unavailableSeats,
+  onSelect,
 }: {
-  label: string;
-  children: React.ReactNode;
+  selectedSeat: string | null;
+  seats: string[];
+  unavailableSeats: Set<string>;
+  onSelect: (seat: string) => void;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {children}
+    <div className="rounded-lg border bg-zinc-50 p-4">
+      <div className="mx-auto mb-5 h-8 max-w-lg rounded-b-full bg-zinc-900 text-center text-xs font-medium uppercase tracking-widest text-white">
+        Тайз
+      </div>
+      <div
+        className="grid gap-1 overflow-x-auto pb-2"
+        style={{ gridTemplateColumns: "repeat(20, minmax(1.75rem, 1fr))" }}
+      >
+        {seats.map((seat) => {
+          const unavailable = unavailableSeats.has(seat);
+          const selected = selectedSeat === seat;
+          return (
+            <button
+              key={seat}
+              type="button"
+              disabled={unavailable}
+              onClick={() => onSelect(seat)}
+              className={`grid aspect-square min-w-7 place-items-center rounded text-[10px] font-medium transition ${
+                selected
+                  ? "bg-emerald-500 text-white"
+                  : unavailable
+                    ? "cursor-not-allowed bg-zinc-200 text-zinc-400"
+                    : "bg-white text-zinc-700 ring-1 ring-zinc-200 hover:bg-zinc-900 hover:text-white"
+              }`}
+              aria-label={`Seat ${seat}`}
+            >
+              <Armchair className="size-3" />
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><span className="size-3 rounded bg-white ring-1 ring-zinc-200" /> Боломжтой</span>
+        <span className="inline-flex items-center gap-1"><span className="size-3 rounded bg-emerald-500" /> Сонгосон</span>
+        <span className="inline-flex items-center gap-1"><span className="size-3 rounded bg-zinc-200" /> Захиалагдсан</span>
+      </div>
+    </div>
+  );
+}
+
+function AccountInfo({ user }: { user: CurrentUser | null }) {
+  return (
+    <div className="grid gap-2 rounded-md border bg-secondary/30 p-3 text-sm sm:grid-cols-2">
+      <Row k="Gmail">{user?.email ?? "-"}</Row>
+      <Row k="Регистр">{nationalIdOf(user) || "-"}</Row>
     </div>
   );
 }
@@ -363,13 +379,7 @@ function StepDot({
   return (
     <div className="flex items-center gap-2">
       <span className={`size-2 rounded-full border ${tone}`} />
-      <span
-        className={
-          active ? "text-sm font-medium" : "text-sm text-muted-foreground"
-        }
-      >
-        {label}
-      </span>
+      <span className={active ? "text-sm font-medium" : "text-sm text-muted-foreground"}>{label}</span>
     </div>
   );
 }

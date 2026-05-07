@@ -10,6 +10,7 @@ export type Ticket = {
   venue: string;
   tierName: string;
   pricePaid: number;
+  seatLabel?: string | null;
   buyer: {
     fullName: string;
     email: string;
@@ -36,6 +37,7 @@ type PurchaseTicketPayload = {
   deviceId: string;
   buyer: Partial<Ticket["buyer"]>;
   biometricSnapshot: string;
+  seatLabel?: string;
 };
 
 type ClaimTicketPayload = {
@@ -67,13 +69,18 @@ function numericId(id: string): string {
 }
 
 export async function listTickets(): Promise<Ticket[]> {
-  const result = await apiRequest<TicketListResponse>("/admin/tickets?per_page=100");
-  return result.data;
+  try {
+    const result = await apiRequest<TicketListResponse>("/admin/tickets?per_page=100");
+    return result.data;
+  } catch {
+    const result = await apiRequest<TicketListResponse>("/tickets?per_page=100");
+    return result.data;
+  }
 }
 
 export async function getTicket(id: string): Promise<Ticket | undefined> {
   try {
-    return await apiRequest<Ticket>(`/admin/tickets/${numericId(id)}`);
+    return await apiRequest<Ticket>(`/tickets/${numericId(id)}`);
   } catch {
     return undefined;
   }
@@ -85,6 +92,7 @@ export async function purchaseTicket({
   deviceId,
   buyer,
   biometricSnapshot,
+  seatLabel,
 }: PurchaseTicketPayload): Promise<Ticket> {
   const result = await apiRequest<{ message: string; ticket: Ticket }>(
     `/events/${numericId(eventId)}/tickets/purchase`,
@@ -93,6 +101,7 @@ export async function purchaseTicket({
       body: {
         tier_name: tierName,
         device_id: deviceId,
+        seat_label: seatLabel ?? "",
         buyer: {
           fullName: buyer.fullName ?? "",
           email: buyer.email ?? "",

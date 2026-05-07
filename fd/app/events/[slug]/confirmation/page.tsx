@@ -94,7 +94,7 @@ export default function ConfirmationPage(
             </div>
             <div className="mt-auto flex items-center justify-between border-t pt-3">
               <span className="text-xs text-muted-foreground">
-                {ticket.buyer.nationalId}
+                {ticket.seatLabel ? `${ticket.buyer.nationalId} · Seat ${ticket.seatLabel}` : ticket.buyer.nationalId}
               </span>
               <span className="text-sm font-semibold">
                 {formatPrice(ticket.pricePaid)}

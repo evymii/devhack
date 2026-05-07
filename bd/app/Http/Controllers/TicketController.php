@@ -68,12 +68,47 @@ class TicketController extends Controller
         ]);
     }
 
+    public function mine(Request $request)
+    {
+        $tickets = Ticket::with('event:id,name,location,start_time')
+            ->where('statusid', 1)
+            ->where('user_id', $request->user()->id)
+            ->orderByDesc('created_at')
+            ->paginate(min((int) ($request->get('per_page') ?? 20), 100));
+
+        return $this->success([
+            'data' => $tickets->getCollection()->map->toFrontend()->values(),
+            'pagination' => [
+                'total' => $tickets->total(),
+                'per_page' => $tickets->perPage(),
+                'current_page' => $tickets->currentPage(),
+                'last_page' => $tickets->lastPage(),
+                'has_more' => $tickets->hasMorePages(),
+            ],
+        ]);
+    }
+
     public function show(Ticket $ticket)
     {
         if ($ticket->statusid !== 1) {
             throw new AxiomException('Тасалбар олдсонгүй эсвэл устгагдсан байна.');
         }
         $ticket->load('event:id,name,location,start_time', 'user:id,name,email', 'checkins');
+        return $this->success($ticket->toFrontend());
+    }
+
+    public function showMine(Request $request, Ticket $ticket)
+    {
+        if ($ticket->statusid !== 1) {
+            throw new AxiomException('Тасалбар олдсонгүй эсвэл устгагдсан байна.');
+        }
+
+        $user = $request->user();
+        if (!$user->isAdmin() && (int) $ticket->user_id !== (int) $user->id) {
+            throw new AxiomException('Тасалбар олдсонгүй.');
+        }
+
+        $ticket->load('event:id,name,location,start_time', 'user:id,name,email');
         return $this->success($ticket->toFrontend());
     }
 
@@ -132,6 +167,7 @@ class TicketController extends Controller
         $validated = $this->validateMe($request, [
             'tier_name' => 'required|string|max:80',
             'device_id' => 'required|string',
+            'seat_label' => 'nullable|string|max:20',
             'buyer' => 'nullable|array',
             'buyer.fullName' => 'nullable|string|max:200',
             'buyer.email' => 'nullable|email|max:200',
@@ -142,7 +178,7 @@ class TicketController extends Controller
         ]);
 
         if (!empty($validated['biometric_snapshot'])) {
-            $request->user()->update(['biometric_data' => $validated['biometric_snapshot']]);
+            $request->user()->update(['biometric_snapshot' => $validated['biometric_snapshot']]);
         }
 
         $ticket = $ticketService->purchase($validated, $event, $request->user()->id);

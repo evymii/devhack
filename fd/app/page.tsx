@@ -21,19 +21,19 @@ export default async function Home() {
   const events = await listEvents()
   const featured = events.slice(0, 3)
   const next = events[0]
-  const sampleTiers = next.tiers
+  const sampleTiers = next?.tiers ?? []
 
   return (
     <main className="flex flex-1 flex-col">
       <Hero />
       <ResultsSection />
       <FeaturedEventsSection featured={featured} />
-      <CountdownSection next={next} />
+      {next && <CountdownSection next={next} />}
       <FaceIdShowcase />
-      <TicketTiersSection tiers={sampleTiers} eventTitle={next.title} />
+      {next && <TicketTiersSection tiers={sampleTiers} eventTitle={next.title} />}
       <FeatureGrid />
       <ArtistsSection />
-      <MementoSection next={next} />
+      {next && <MementoSection next={next} />}
       <SavedSection events={events} />
       <Footer />
     </main>
@@ -243,7 +243,7 @@ function TicketTiersSection({
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {tiers.map((t, i) => (
-            <Card key={t.id} className="overflow-hidden">
+            <Card key={`${t.id}-${t.price}-${i}`} className="overflow-hidden">
               <CardContent className="space-y-3 p-5">
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">
                   {String(i + 1).padStart(2, "0")} · {t.name}

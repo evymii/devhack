@@ -92,11 +92,11 @@ export default async function EventPage(props: PageProps<"/events/[slug]">) {
                 <h2 className="text-base font-medium">Тасалбар сонгох</h2>
               </div>
               <div className="space-y-2">
-                {event.tiers.map((tier) => {
+                {event.tiers.map((tier, index) => {
                   const lowStock = tier.remaining <= 20
                   return (
                     <Link
-                      key={tier.id}
+                      key={`${tier.id}-${tier.price}-${index}`}
                       href={`/events/${event.slug}/checkout?tier=${tier.id}`}
                       className="group block rounded-lg border bg-background p-3 transition-colors hover:border-foreground/40"
                     >

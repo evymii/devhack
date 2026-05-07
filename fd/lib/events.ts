@@ -5,7 +5,9 @@ export type TicketTier = {
   name: string
   price: number
   perks: string[]
+  capacity?: number
   remaining: number
+  takenSeats?: string[]
 }
 
 export type FestivalEvent = {

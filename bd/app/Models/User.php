@@ -26,9 +26,14 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'national_id',
         'password',
         'biometric_data',
+        'face_id',
+        'biometric_snapshot',
         'role',
+        'email_verified_at',
+        'statusid',
     ];
 
     public function isAdmin()

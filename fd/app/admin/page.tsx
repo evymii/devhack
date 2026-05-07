@@ -231,6 +231,9 @@ export default function AdminPage() {
             <p className="mt-2 text-sm text-muted-foreground">
               Scan, ticket generation, and event management are visible only for users with the admin role.
             </p>
+            <Button asChild className="mt-4">
+              <a href="/admin/auth?next=/admin">Admin login</a>
+            </Button>
           </CardContent>
         </Card>
       </main>
