@@ -48,11 +48,11 @@ class AuthController extends Controller
         Cache::put($this->otpCacheKey($email), Hash::make($otp), now()->addMinutes(10));
 
         try {
-            Mail::raw("Your FacePass verification code is: {$otp}", function ($message) use ($email) {
-                $message->to($email)->subject('FacePass OTP');
+            Mail::raw("Таны FacePass баталгаажуулах код: {$otp}", function ($message) use ($email) {
+                $message->to($email)->subject('FacePass OTP баталгаажуулалт');
             });
-        } catch (\Throwable) {
-            // Local dev often has no mail transport. The OTP remains in cache.
+        } catch (\Throwable $e) {
+            throw new AxiomException('Имэйл илгээхэд алдаа гарлаа. SMTP тохиргоогоо шалгана уу: ' . $e->getMessage());
         }
 
         $response = ['message' => 'OTP илгээгдлээ.'];
