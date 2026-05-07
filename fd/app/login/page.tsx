@@ -201,7 +201,7 @@ export default function LoginPage() {
                     <Button type="submit" disabled={!!busy || !email}>
                       <Mail className="size-4" /> OTP илгээх
                     </Button>
-                    {devOtp && <p className="text-sm text-muted-foreground">Local OTP: <span className="font-mono">{devOtp}</span></p>}
+                    {/* {devOtp && <p className="text-sm text-muted-foreground">Local OTP: <span className="font-mono">{devOtp}</span></p>} */}
                   </form>
 
                   <form className="space-y-3" onSubmit={submitOtpVerify}>
